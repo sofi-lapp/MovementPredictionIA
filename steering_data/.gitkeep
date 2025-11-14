@@ -1,0 +1,2 @@
+# Este archivo mantiene la carpeta steering_data/ en el repositorio
+# Los archivos .npy son ignorados por .gitignore
