@@ -5,8 +5,8 @@ opencv-python>=4.8.0
 mediapipe>=0.10.0
 
 # Deep Learning
-tensorflow==2.10.1
-keras==2.10.0
+tensorflow==2.20.0
+keras>=3.0.0
 
 # Data Processing
 numpy>=1.24.0
