@@ -48,8 +48,8 @@ def draw_steering_interface(frame, angle):
     # Etiquetas
     draw_labels(frame, bar_x_start, bar_x_end, center_x, bar_y)
     
-    # Dirección
-    draw_direction_indicator(frame, angle, w)
+    # Dirección (comentado - no mostrar en ventana)
+    # draw_direction_indicator(frame, angle, w)
     
     return frame
 
@@ -171,3 +171,88 @@ def print_console_value(angle_smoothed, frame_count):
         bar[center] = '|'
         bar[pos] = chr(9608)  # █
         print(''.join(bar))
+
+
+def draw_steering_wheel_visual(frame, angle, wheel_image_cache={}):
+    """
+    Dibuja la imagen del volante rotada en el centro-inferior del frame
+    
+    Args:
+        frame: Frame de video
+        angle: Ángulo actual del volante (-1 a +1)
+        wheel_image_cache: Diccionario para cachear la imagen cargada
+    
+    Returns:
+        frame: Frame con el volante dibujado
+    """
+    import os
+    
+    # Cargar imagen solo una vez (caché)
+    if 'image' not in wheel_image_cache:
+        wheel_path = "Assets/steeringWheel.png"
+        if os.path.exists(wheel_path):
+            wheel_image_cache['image'] = cv2.imread(wheel_path, cv2.IMREAD_UNCHANGED)
+        else:
+            wheel_image_cache['image'] = None
+            print(f"Advertencia: No se encontró {wheel_path}")
+    
+    wheel_img = wheel_image_cache['image']
+    if wheel_img is None:
+        return frame
+    
+    # Tamaño del volante
+    wheel_size = 150
+    wheel_img_resized = cv2.resize(wheel_img, (wheel_size, wheel_size))
+    
+    # Posición: centro horizontal, inferior del frame
+    h, w = frame.shape[:2]
+    pos_x = (w - wheel_size) // 2
+    pos_y = h - wheel_size - 150  # 150 píxeles desde el fondo
+    
+    # Convertir ángulo de -1..+1 a grados (multiplicar para rotación más visible)
+    angle_deg = angle * 450  # Rango amplio de rotación
+    
+    # Rotar imagen
+    center = (wheel_size // 2, wheel_size // 2)
+    rotation_matrix = cv2.getRotationMatrix2D(center, -angle_deg, 1.0)
+    rotated = cv2.warpAffine(wheel_img_resized, rotation_matrix, (wheel_size, wheel_size),
+                            flags=cv2.INTER_LINEAR,
+                            borderMode=cv2.BORDER_CONSTANT,
+                            borderValue=(0, 0, 0, 0))
+    
+    # Superponer en el frame
+    try:
+        # Verificar límites
+        if pos_y < 0:
+            pos_y = 0
+        if pos_y + wheel_size > h:
+            wheel_size = h - pos_y
+            rotated = rotated[:wheel_size, :]
+        if pos_x + wheel_size > w:
+            wheel_size_x = w - pos_x
+            rotated = rotated[:, :wheel_size_x]
+        
+        if wheel_size <= 0:
+            return frame
+        
+        h_wheel, w_wheel = rotated.shape[:2]
+        
+        # Superponer con transparencia si tiene canal alpha
+        if rotated.shape[2] == 4:
+            alpha = rotated[:, :, 3] / 255.0
+            alpha = np.expand_dims(alpha, axis=2)
+            
+            overlay = rotated[:, :, :3]
+            background = frame[pos_y:pos_y+h_wheel, pos_x:pos_x+w_wheel]
+            
+            frame[pos_y:pos_y+h_wheel, pos_x:pos_x+w_wheel] = (
+                alpha * overlay + (1 - alpha) * background
+            ).astype(np.uint8)
+        else:
+            # Sin transparencia - copiar directamente
+            frame[pos_y:pos_y+h_wheel, pos_x:pos_x+w_wheel] = rotated[:, :, :3]
+    
+    except Exception as e:
+        pass  # Silenciar errores de superposición
+    
+    return frame

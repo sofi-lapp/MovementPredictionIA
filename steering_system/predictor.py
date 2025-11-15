@@ -105,6 +105,9 @@ class RealTimeSteeringPredictor:
             if not ret:
                 break
             
+            # Invertir imagen horizontalmente (efecto espejo)
+            frame = cv2.flip(frame, 1)
+            
             # Extraer landmarks
             landmarks, results = self.extract_hand_landmarks(frame)
             

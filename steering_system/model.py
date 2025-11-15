@@ -269,7 +269,15 @@ class SteeringWheelModel:
         if not os.path.exists(stats_path):
             raise FileNotFoundError(f"No se encontraron estadisticas en {stats_path}")
         
-        self.model = keras.models.load_model(model_path)
+        # Cargar modelo sin compilar (evita problemas de deserialización)
+        self.model = keras.models.load_model(model_path, compile=False)
+        
+        # Re-compilar con la misma configuración
+        self.model.compile(
+            optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
+            loss='mse',
+            metrics=['mae']
+        )
         
         with open(stats_path, 'rb') as f:
             stats = pickle.load(f)

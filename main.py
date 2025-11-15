@@ -3,7 +3,7 @@ Punto de entrada principal del Sistema de Volante Virtual
 
 Este módulo proporciona un menú interactivo para:
     1. Recopilar datos de entrenamiento
-    2. Entrenar el modelo
+    2. Entrenar el modelo4
     3. Ejecutar predicción en tiempo real
     4. Flujo completo (recopilar + entrenar + predecir)
     5. Ver información del sistema
@@ -49,6 +49,9 @@ def train_model():
         # Entrenar
         epochs = int(input("\nNumero de epocas (recomendado 100): "))
         model.train(X, y, epochs=epochs)
+        
+        # Asegurar que directorio de modelos existe
+        os.makedirs(MODEL_DIR, exist_ok=True)
         
         # Guardar
         model.save_model()

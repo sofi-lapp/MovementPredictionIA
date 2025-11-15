@@ -123,6 +123,9 @@ class SteeringWheelDataCollector:
             if not ret:
                 break
             
+            # Invertir imagen horizontalmente (efecto espejo)
+            frame = cv2.flip(frame, 1)
+            
             # Extraer landmarks
             landmarks, results = self.extract_hand_landmarks(frame)
             
@@ -180,6 +183,10 @@ class SteeringWheelDataCollector:
             # Dibujar interfaz
             frame = draw_steering_interface(frame, self.current_angle)
             
+            # Dibujar volante visual rotado
+            from .ui_utils import draw_steering_wheel_visual
+            frame = draw_steering_wheel_visual(frame, self.current_angle)
+            
             # Información en pantalla
             progress_pct = (len(self.hand_positions) / num_samples) * 100
             color = (0, 255, 0) if hands_detected else (0, 0, 255)
@@ -187,19 +194,19 @@ class SteeringWheelDataCollector:
             cv2.putText(frame, f"Muestras: {len(self.hand_positions)}/{num_samples} ({progress_pct:.0f}%)", 
                        (10, 30), cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
             
-            # Indicador de manos detectadas
-            hand_status = "MANOS: SI" if hands_detected else "MANOS: NO"
-            cv2.putText(frame, hand_status, (10, 70), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
+            # Indicador de manos detectadas (comentado - no mostrar)
+            # hand_status = "MANOS: SI" if hands_detected else "MANOS: NO"
+            # cv2.putText(frame, hand_status, (10, 70), 
+            #            cv2.FONT_HERSHEY_SIMPLEX, 0.8, color, 2)
             
             # Última captura
             if last_capture_angle is not None:
                 cv2.putText(frame, f"Ultima captura: {last_capture_angle:+.2f}", (10, 110), 
                            cv2.FONT_HERSHEY_SIMPLEX, 0.6, (0, 255, 255), 2)
             
-            # Instrucción principal
-            cv2.putText(frame, "Presiona ESPACIO para CAPTURAR", (10, 150), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
+            # Instrucción principal (comentado - no mostrar)
+            # cv2.putText(frame, "Presiona ESPACIO para CAPTURAR", (10, 150), 
+            #            cv2.FONT_HERSHEY_SIMPLEX, 0.7, (0, 255, 0), 2)
             
             cv2.imshow("Entrenamiento - Volante Virtual", frame)
         
