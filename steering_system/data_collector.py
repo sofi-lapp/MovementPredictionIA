@@ -10,7 +10,7 @@ import time
 from datetime import datetime
 from .config import (
     DATA_DIR, MAX_NUM_HANDS, MIN_DETECTION_CONFIDENCE, 
-    MIN_TRACKING_CONFIDENCE
+    MIN_TRACKING_CONFIDENCE, calculate_angle_distribution
 )
 from .ui_utils import draw_steering_interface
 
@@ -59,32 +59,40 @@ class SteeringWheelDataCollector:
     
     def collect_training_data(self, num_samples=200):
         """
-        Secuencia de ida y vuelta:
-        Derecha(1.0) → Centro(0) → Izquierda(-1.0) → Centro(0) → Derecha(1.0) ...
+        Captura inteligente con distribución priorizando centro y extremos.
+        El volante da múltiples vueltas completas según la cantidad de muestras.
         """
         cam = cv2.VideoCapture(0)
-        print("\nMODO ENTRENAMIENTO: Derecha → Centro → Izquierda → Centro\n")
-
-        # Crear patrón de ida y vuelta
-        # Calcular cuántas muestras por segmento
-        samples_per_segment = num_samples // 4
         
-        segment1 = np.linspace(1.0, 0.0, samples_per_segment)      # Derecha → Centro
-        segment2 = np.linspace(0.0, -1.0, samples_per_segment)     # Centro → Izquierda
-        segment3 = np.linspace(-1.0, 0.0, samples_per_segment)     # Izquierda → Centro
-        segment4 = np.linspace(0.0, 1.0, samples_per_segment)      # Centro → Derecha
+        # Calcular distribución y número de vueltas
+        distribution, num_laps = calculate_angle_distribution(num_samples)
         
-        # Concatenar todos los segmentos
-        target_angles = np.concatenate([segment1, segment2, segment3, segment4])
+        print(f"\nMODO ENTRENAMIENTO: Captura Inteligente")
+        print(f"Muestras totales: {num_samples}")
+        print(f"Vueltas completas: {num_laps}")
+        print(f"\nDistribución (muestras por ángulo):")
+        print(f"  Centro (0.0): {distribution[0.0]} muestras")
+        print(f"  Extremos (-1.0, +1.0): {distribution[-1.0]}, {distribution[1.0]} muestras")
+        print(f"  Intermedios: 1-{min([v for k, v in distribution.items() if abs(k) > 0.1 and abs(k) < 0.9])} muestras")
+        print(f"\nPatrón: Derecha ⇄ Izquierda (x{num_laps} vueltas)\n")
         
-        # Ajustar para tener exactamente num_samples
-        if len(target_angles) < num_samples:
-            # Agregar ángulos adicionales repitiendo el patrón
-            remaining = num_samples - len(target_angles)
-            extra = np.linspace(1.0, 0.0, remaining)
-            target_angles = np.concatenate([target_angles, extra])
-        else:
-            target_angles = target_angles[:num_samples]
+        # Construir secuencia de ángulos objetivo con repeticiones
+        angles_sorted = sorted(distribution.keys(), reverse=True)  # De +1.0 a -1.0
+        target_angles = []
+        
+        # Para cada vuelta, alternar dirección para continuidad
+        for lap in range(num_laps):
+            # Vueltas pares: Derecha → Izquierda
+            # Vueltas impares: Izquierda → Derecha (continúa desde donde terminó)
+            if lap % 2 == 0:
+                angles_in_lap = [angle for angle in angles_sorted if distribution[angle] > lap]
+            else:
+                angles_in_lap = [angle for angle in reversed(angles_sorted) if distribution[angle] > lap]
+            
+            target_angles.extend(angles_in_lap)
+        
+        # Ajustar para tener exactamente num_samples (por si hay redondeo)
+        target_angles = target_angles[:num_samples]
 
         # Animación más rápida
         anim_steps = 8

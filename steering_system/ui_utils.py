@@ -209,8 +209,8 @@ def draw_steering_wheel_visual(frame, angle, wheel_image_cache={}):
     pos_x = (w - wheel_size) // 2
     pos_y = h - wheel_size - 150  # 150 píxeles desde el fondo
     
-    # Convertir ángulo de -1..+1 a grados (multiplicar para rotación más visible)
-    angle_deg = angle * 120  # Rango amplio de rotación
+    # Convertir ángulo de -1..+1 a grados (90° máximo en cada dirección)
+    angle_deg = angle * 90  # 90 grados = cuarto de vuelta
     
     # Rotar imagen
     center = (wheel_size // 2, wheel_size // 2)
