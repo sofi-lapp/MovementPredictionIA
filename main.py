@@ -98,6 +98,8 @@ def full_workflow():
     
     # 1. Recopilar datos
     print("\n[1/3] Recopilando datos...")
+
+    #ACA UN 3, 2, 1
     collector = SteeringWheelDataCollector()
     X, y = collector.collect_training_data(num_samples=150)
     
