@@ -12,7 +12,7 @@ from .config import (
     DATA_DIR, MAX_NUM_HANDS, MIN_DETECTION_CONFIDENCE, 
     MIN_TRACKING_CONFIDENCE, calculate_angle_distribution
 )
-from .ui_utils import draw_steering_interface
+from .ui_utils import draw_steering_interface, run_f1_countdown
 
 
 class SteeringWheelDataCollector:
@@ -100,6 +100,20 @@ class SteeringWheelDataCollector:
 
         from .ui_utils import draw_steering_wheel_visual
 
+        # ============================================
+        # SEMAFORO F1 - CUENTA REGRESIVA DE 10 SEGUNDOS
+        # ============================================
+        print("\n🏁 Preparando inicio...\n")
+        countdown_completed = run_f1_countdown(cam)
+        
+        if not countdown_completed:
+            print("\n⚠ Entrenamiento cancelado antes de comenzar.")
+            cam.release()
+            cv2.destroyAllWindows()
+            return None, None
+        
+        print("\n✓ ¡Captura iniciada!\n")
+        
         # Inicializar en el primer ángulo (Derecha = 1.0)
         self.current_angle = target_angles[0]
 

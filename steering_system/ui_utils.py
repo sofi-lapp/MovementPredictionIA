@@ -173,6 +173,155 @@ def print_console_value(angle_smoothed, frame_count):
         print(''.join(bar))
 
 
+def draw_f1_countdown(frame, lights_on):
+    """
+    Dibuja semáforo estilo Fórmula 1 con 5 luces rojas
+    
+    Args:
+        frame: Frame de video
+        lights_on: Número de luces rojas encendidas (0-5)
+    
+    Returns:
+        frame: Frame con el semáforo dibujado
+    """
+    h, w = frame.shape[:2]
+    
+    # Configuración del semáforo
+    light_radius = 40
+    light_spacing = 100
+    lights_total = 5
+    
+    # Calcular posición inicial (centrado horizontal)
+    total_width = (lights_total - 1) * light_spacing
+    start_x = (w - total_width) // 2
+    y_pos = h // 3  # Tercio superior
+    
+    # Fondo negro del semáforo
+    margin = 30
+    cv2.rectangle(frame, 
+                  (start_x - margin - light_radius, y_pos - light_radius - margin),
+                  (start_x + total_width + margin + light_radius, y_pos + light_radius + margin),
+                  (20, 20, 20), -1)
+    cv2.rectangle(frame, 
+                  (start_x - margin - light_radius, y_pos - light_radius - margin),
+                  (start_x + total_width + margin + light_radius, y_pos + light_radius + margin),
+                  (100, 100, 100), 3)
+    
+    # Dibujar las 5 luces
+    for i in range(lights_total):
+        x_pos = start_x + i * light_spacing
+        
+        # Luz encendida (roja) o apagada (gris oscuro)
+        if i < lights_on:
+            color = (0, 0, 255)  # Rojo brillante
+            cv2.circle(frame, (x_pos, y_pos), light_radius, color, -1)
+            # Efecto de brillo
+            cv2.circle(frame, (x_pos, y_pos), light_radius + 5, (0, 0, 200), 2)
+        else:
+            color = (50, 50, 50)  # Gris oscuro (apagada)
+            cv2.circle(frame, (x_pos, y_pos), light_radius, color, -1)
+        
+        # Borde de la luz
+        cv2.circle(frame, (x_pos, y_pos), light_radius, (200, 200, 200), 2)
+    
+    # Texto informativo
+    if lights_on > 0:
+        text = "PREPARATE..."
+        color = (0, 165, 255)  # Naranja
+    else:
+        text = "GO! GO! GO!"
+        color = (0, 255, 0)  # Verde
+    
+    text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 2, 3)[0]
+    text_x = (w - text_size[0]) // 2
+    text_y = y_pos + light_radius + 100
+    
+    # Sombra del texto
+    cv2.putText(frame, text, (text_x + 3, text_y + 3), 
+                cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 0), 5)
+    # Texto principal
+    cv2.putText(frame, text, (text_x, text_y), 
+                cv2.FONT_HERSHEY_SIMPLEX, 2, color, 3)
+    
+    return frame
+
+
+def run_f1_countdown(cam):
+    """
+    Ejecuta la cuenta regresiva del semáforo F1 de 20 segundos
+    
+    Args:
+        cam: Objeto de captura de video (cv2.VideoCapture)
+    
+    Returns:
+        bool: True si se completó, False si se canceló con 'q'
+    """
+    import time
+    
+    print("\n" + "="*70)
+    print("SEMAFORO DE INICIO - ESTILO FORMULA 1")
+    print("="*70)
+    print("\nSecuencia de 20 segundos:")
+    print("  0-4s:   █████ (5 luces rojas)")
+    print("  4-8s:   ████░ (4 luces rojas)")
+    print("  8-12s:  ███░░ (3 luces rojas)")
+    print("  12-16s: ██░░░ (2 luces rojas)")
+    print("  16-20s: █░░░░ (1 luz roja)")
+    print("  20s:    ░░░░░ GO! - Inicia captura")
+    print("\nPresiona 'q' para cancelar")
+    print("="*70 + "\n")
+    
+    # Secuencia: 5 luces por 4 segundos cada una
+    sequence = [
+        (5, 4.0),  # 5 luces por 4 segundos
+        (4, 4.0),  # 4 luces por 4 segundos
+        (3, 4.0),  # 3 luces por 4 segundos
+        (2, 4.0),  # 2 luces por 4 segundos
+        (1, 4.0),  # 1 luz por 4 segundos
+        (0, 1.0),  # GO! por 1 segundo
+    ]
+    
+    countdown_start = time.time()
+    total_duration = sum(dur for _, dur in sequence)
+    
+    for lights_on, duration in sequence:
+        start_time = time.time()
+        
+        while time.time() - start_time < duration:
+            ret, frame = cam.read()
+            if not ret:
+                return False
+            
+            frame = cv2.flip(frame, 1)
+            
+            # Dibujar semáforo
+            frame = draw_f1_countdown(frame, lights_on)
+            
+            # Mostrar tiempo restante total (desde 20s hasta 0s)
+            total_elapsed = time.time() - countdown_start
+            total_remaining = total_duration - total_elapsed
+            
+            h, w = frame.shape[:2]
+            time_text = f"{total_remaining:.1f}s"
+            cv2.putText(frame, time_text, (w // 2 - 40, h - 50), 
+                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
+            
+            cv2.imshow("Entrenamiento", frame)
+            
+            # Check para cancelar
+            if cv2.waitKey(30) & 0xFF == ord('q'):
+                print("\nCuenta regresiva cancelada.")
+                return False
+        
+        # Mensaje en consola
+        if lights_on > 0:
+            print(f"⚫ {lights_on} {'luces' if lights_on > 1 else 'luz'} encendida{'s' if lights_on > 1 else ''}")
+        else:
+            print("🏁 ¡GO! ¡Comenzando captura!\n")
+    
+    return True
+
+
 def draw_steering_wheel_visual(frame, angle, wheel_image_cache={}):
     """
     Dibuja la imagen del volante rotada en el centro-inferior del frame
