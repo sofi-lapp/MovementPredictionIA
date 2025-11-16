@@ -59,22 +59,41 @@ class SteeringWheelDataCollector:
     
     def collect_training_data(self, num_samples=200):
         """
-        Secuencia:
-        - Mover suavemente → parar → capturar → siguiente ángulo
-        - Una captura por ángulo
-        - Movimiento suave SIN giro loco ni velocidad alta
+        Secuencia de ida y vuelta:
+        Derecha(1.0) → Centro(0) → Izquierda(-1.0) → Centro(0) → Derecha(1.0) ...
         """
         cam = cv2.VideoCapture(0)
-        print("\nMODO ENTRENAMIENTO: mover → parar → capturar\n")
+        print("\nMODO ENTRENAMIENTO: Derecha → Centro → Izquierda → Centro\n")
 
-        # Ángulos completos de -1 a 1
-        target_angles = np.linspace(-1.0, 1.0, num_samples)
+        # Crear patrón de ida y vuelta
+        # Calcular cuántas muestras por segmento
+        samples_per_segment = num_samples // 4
+        
+        segment1 = np.linspace(1.0, 0.0, samples_per_segment)      # Derecha → Centro
+        segment2 = np.linspace(0.0, -1.0, samples_per_segment)     # Centro → Izquierda
+        segment3 = np.linspace(-1.0, 0.0, samples_per_segment)     # Izquierda → Centro
+        segment4 = np.linspace(0.0, 1.0, samples_per_segment)      # Centro → Derecha
+        
+        # Concatenar todos los segmentos
+        target_angles = np.concatenate([segment1, segment2, segment3, segment4])
+        
+        # Ajustar para tener exactamente num_samples
+        if len(target_angles) < num_samples:
+            # Agregar ángulos adicionales repitiendo el patrón
+            remaining = num_samples - len(target_angles)
+            extra = np.linspace(1.0, 0.0, remaining)
+            target_angles = np.concatenate([target_angles, extra])
+        else:
+            target_angles = target_angles[:num_samples]
 
         # Animación más rápida
         anim_steps = 8
         anim_wait_ms = 15
 
         from .ui_utils import draw_steering_wheel_visual
+
+        # Inicializar en el primer ángulo (Derecha = 1.0)
+        self.current_angle = target_angles[0]
 
         for i, target in enumerate(target_angles):
 
