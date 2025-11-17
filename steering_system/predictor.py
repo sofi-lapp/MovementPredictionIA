@@ -34,7 +34,7 @@ class RealTimeSteeringPredictor:
         )
         
         # Suavizado de predicciones
-        self.prediction_history = []
+        self.prediction_history = [0.0] * PREDICTION_HISTORY_SIZE  # Inicializar en el centro
         self.history_size = PREDICTION_HISTORY_SIZE
     
     def extract_hand_landmarks(self, frame):
@@ -90,6 +90,9 @@ class RealTimeSteeringPredictor:
         Args:
             show_console_output: Si True, imprime valores en consola
         """
+        # Mostrar evaluación del modelo antes de iniciar
+        self.model.print_model_summary()
+        
         cam = cv2.VideoCapture(0)
         
         print_prediction_header()

@@ -34,6 +34,8 @@ def train_model():
     print("\n" + "="*70)
     print("ENTRENAMIENTO DEL MODELO")
     print("="*70)
+    print("\nUsando modelo ADVANCED (máxima precisión)")
+    print("Arquitectura: 5 capas con conexiones residuales + Huber loss")
     
     model = SteeringWheelModel()
     
@@ -41,13 +43,32 @@ def train_model():
         # Cargar datos
         X, y = model.load_all_training_data()
         
+        print(f"\n📊 Datos cargados: {len(X)} muestras")
+        
         # Construir modelo
         model.build_model()
+        print("\n📊 Modelo ADVANCED creado exitosamente")
         print("\nResumen del modelo:")
         model.model.summary()
         
+        # Épocas recomendadas según cantidad de datos
+        num_samples = len(X)
+        if num_samples < 100:
+            recommended = 100
+        elif num_samples < 300:
+            recommended = 150
+        elif num_samples < 1000:
+            recommended = 300
+        else:
+            recommended = 500
+        
+        print(f"\n💡 Épocas recomendadas para {num_samples} muestras: {recommended}")
+        print("⚡ Early Stopping activado: se detendrá automáticamente si no mejora")
+        
+        epochs_input = input(f"\nNumero de epocas (Enter = {recommended}): ").strip()
+        epochs = int(epochs_input) if epochs_input else recommended
+        
         # Entrenar
-        epochs = int(input("\nNumero de epocas (recomendado 100): "))
         model.train(X, y, epochs=epochs)
         
         # Asegurar que directorio de modelos existe
@@ -56,11 +77,18 @@ def train_model():
         # Guardar
         model.save_model()
         
-        print("\nOK Entrenamiento completado exitosamente")
+        print("\n✅ Entrenamiento completado exitosamente")
         
-    except Exception as e:
-        print(f"\n! Error: {e}")
+    except FileNotFoundError as e:
+        print(f"\n❌ Error: No se encontraron datos de entrenamiento")
         print("Asegurate de haber recopilado datos primero (opcion 1)")
+    except ValueError as e:
+        print(f"\n❌ Error: {e}")
+        print("Verifica que los archivos de datos sean válidos")
+    except Exception as e:
+        print(f"\n❌ Error inesperado: {e}")
+        import traceback
+        traceback.print_exc()
 
 
 def predict_realtime():
@@ -69,6 +97,7 @@ def predict_realtime():
     print("PREDICCION EN TIEMPO REAL")
     print("="*70)
     
+    # Detectar tipo de modelo si existe
     model = SteeringWheelModel()
     
     try:
@@ -80,7 +109,7 @@ def predict_realtime():
         predictor.run(show_console_output=show_console)
         
     except Exception as e:
-        print(f"\n! Error: {e}")
+        print(f"\n❌ Error: {e}")
         print("Asegurate de haber entrenado el modelo primero (opcion 2)")
 
 
@@ -98,23 +127,40 @@ def full_workflow():
     
     # 1. Recopilar datos
     print("\n[1/3] Recopilando datos...")
-    collector = SteeringWheelDataCollector()
-    X, y = collector.collect_training_data(num_samples=150)
+    print("Iniciando en 3...")
+    import time
+    time.sleep(1)
+    print("2...")
+    time.sleep(1)
+    print("1...")
+    time.sleep(1)
+    print("¡GO!\n")
     
-    if X is None or len(X) == 0:
-        print("\n! No se recopilaron datos. Abortando flujo.")
-        return
+    collector = SteeringWheelDataCollector()
+    collector.collect_training_data(num_samples=150)
     
     # 2. Entrenar
     print("\n[2/3] Entrenando modelo...")
-    model = SteeringWheelModel()
-    X, y = model.load_all_training_data()
-    model.build_model()
-    model.train(X, y, epochs=100)
+    print("Usando modelo ADVANCED (máxima precisión)")
     
-    # Asegurar que directorio de modelos existe
-    os.makedirs(MODEL_DIR, exist_ok=True)
-    model.save_model()
+    try:
+        model = SteeringWheelModel()
+        X, y = model.load_all_training_data()
+        
+        print(f"\n📊 Datos cargados: {len(X)} muestras")
+        
+        model.build_model()
+        model.train(X, y, epochs=150)
+        
+        # Asegurar que directorio de modelos existe
+        os.makedirs(MODEL_DIR, exist_ok=True)
+        model.save_model()
+        
+    except Exception as e:
+        print(f"\n❌ Error en entrenamiento: {e}")
+        import traceback
+        traceback.print_exc()
+        return
     
     # 3. Predecir
     print("\n[3/3] Iniciando prediccion...")
@@ -131,9 +177,16 @@ def show_info():
     print("\n-- Descripcion:")
     print("  Sistema de Deep Learning para volante virtual")
     print("  Detecta manos con MediaPipe y predice angulo de volante")
+    print("\n-- Modelo: ADVANCED (Máxima Precisión)")
+    print("  - Arquitectura: 5 capas densas con conexiones residuales")
+    print("  - Parámetros: ~150K")
+    print("  - BatchNormalization + L2 Regularization + Dropout")
+    print("  - Huber Loss (robusto ante outliers)")
+    print("  - Learning Rate Decay exponencial")
     print("\n-- Arquitectura:")
     print("  - Input: 126 valores (2 manos x 21 landmarks x 3 coords)")
-    print("  - Red neuronal densa con 4 capas ocultas")
+    print("  - 5 capas densas: 256 → 256 → 128 → 64 → 32")
+    print("  - Conexión residual en capa 2")
     print("  - Output: Valor continuo [-1, +1]")
     print("    * -1.0 = Volante girado completamente a la izquierda")
     print("    *  0.0 = Volante en posicion central (recto)")
@@ -155,7 +208,7 @@ def show_info():
     print("  * Captura 100-300 muestras variadas")
     print("  * Incluye todas las posiciones del volante")
     print("  * Multiples capturas por angulo (con variaciones)")
-    print("  * Mantén buena iluminacion")
+    print("  * Manten buena iluminacion")
     print("\n-- Archivos generados:")
     print("  * steering_data/*.npy - Datos de entrenamiento")
     print("  * models/steering_model.h5 - Modelo entrenado")

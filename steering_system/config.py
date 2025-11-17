@@ -29,3 +29,81 @@ CONSOLE_UPDATE_INTERVAL = 10  # frames
 # UI
 STEERING_BAR_Y_OFFSET = 80
 STEERING_BAR_MARGIN = 50
+
+# Distribución de ángulos
+TOTAL_ANGLES = 41  # 20 izq + centro + 20 der (-1.0 a +1.0 en pasos de 0.05)
+
+
+def calculate_angle_distribution(num_samples):
+    """
+    Calcula la distribución de muestras por ángulo, priorizando centro y extremos.
+    
+    Args:
+        num_samples: Número total de muestras a capturar
+    
+    Returns:
+        tuple: (angle_distribution dict, num_laps int)
+        - angle_distribution: {ángulo: cantidad_de_muestras}
+        - num_laps: Número de vueltas completas que dará el volante
+    
+    Estrategia:
+    - Centro (0.0): Mayor cantidad de muestras
+    - Extremos (-1.0, +1.0): Segunda mayor cantidad
+    - Posiciones intermedias: Menos muestras
+    """
+    import numpy as np
+    
+    # Definir todos los ángulos posibles
+    angles = np.linspace(-1.0, 1.0, TOTAL_ANGLES)
+    
+    # Calcular pesos (prioridad) para cada ángulo
+    # Centro = peso alto, extremos = peso medio-alto, intermedios = peso bajo
+    weights = []
+    for angle in angles:
+        abs_angle = abs(angle)
+        
+        if abs_angle < 0.05:  # Centro
+            weight = 5.0  # Máxima prioridad
+        elif abs_angle > 0.95:  # Extremos
+            weight = 3.5  # Alta prioridad
+        elif abs_angle > 0.75:  # Cerca de extremos
+            weight = 2.0
+        elif abs_angle < 0.25:  # Cerca del centro
+            weight = 2.5
+        else:  # Intermedios
+            weight = 1.0
+        
+        weights.append(weight)
+    
+    # Normalizar pesos para que sumen num_samples
+    weights = np.array(weights)
+    weights = weights / weights.sum() * num_samples
+    
+    # Convertir a enteros (al menos 1 muestra por ángulo)
+    samples_per_angle = np.maximum(1, np.round(weights).astype(int))
+    
+    # Ajustar para que la suma sea exactamente num_samples
+    difference = num_samples - samples_per_angle.sum()
+    
+    if difference > 0:
+        # Agregar muestras faltantes priorizando centro y extremos
+        priority_indices = [20]  # Centro
+        priority_indices.extend([0, 40])  # Extremos
+        for i in range(abs(difference)):
+            samples_per_angle[priority_indices[i % len(priority_indices)]] += 1
+    elif difference < 0:
+        # Quitar muestras sobrantes de posiciones intermedias
+        for i in range(abs(difference)):
+            # Buscar índices intermedios con más de 1 muestra
+            mid_indices = [i for i in range(5, 36) if i not in [20] and samples_per_angle[i] > 1]
+            if mid_indices:
+                samples_per_angle[mid_indices[i % len(mid_indices)]] -= 1
+    
+    # Crear diccionario de distribución
+    distribution = {float(angle): int(count) for angle, count in zip(angles, samples_per_angle)}
+    
+    # Calcular número de vueltas (cada vuelta cubre todos los ángulos una vez)
+    max_samples_per_angle = int(samples_per_angle.max())
+    num_laps = max_samples_per_angle
+    
+    return distribution, num_laps
