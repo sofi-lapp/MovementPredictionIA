@@ -90,6 +90,9 @@ class RealTimeSteeringPredictor:
         Args:
             show_console_output: Si True, imprime valores en consola
         """
+        # Mostrar evaluación del modelo antes de iniciar
+        self.model.print_model_summary()
+        
         cam = cv2.VideoCapture(0)
         
         print_prediction_header()
