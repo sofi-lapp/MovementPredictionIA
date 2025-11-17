@@ -74,25 +74,98 @@ class SteeringWheelDataCollector:
         print(f"  Centro (0.0): {distribution[0.0]} muestras")
         print(f"  Extremos (-1.0, +1.0): {distribution[-1.0]}, {distribution[1.0]} muestras")
         print(f"  Intermedios: 1-{min([v for k, v in distribution.items() if abs(k) > 0.1 and abs(k) < 0.9])} muestras")
-        print(f"\nPatrón: Derecha ⇄ Izquierda (x{num_laps} vueltas)\n")
+        print(f"\nPatrón: 0 → -1.0 → 0 → +1.0 → 0 (más lento en centro/extremos)\n")
         
-        # Construir secuencia de ángulos objetivo con repeticiones
-        angles_sorted = sorted(distribution.keys(), reverse=True)  # De +1.0 a -1.0
+        # Construir secuencia: 0 → -1.0 → 0 → +1.0 → 0, repetir
+        all_angles_sorted = sorted(distribution.keys())  # De -1.0 a +1.0
+        
         target_angles = []
+        pause_times = []
         
-        # Para cada vuelta, alternar dirección para continuidad
         for lap in range(num_laps):
-            # Vueltas pares: Derecha → Izquierda
-            # Vueltas impares: Izquierda → Derecha (continúa desde donde terminó)
-            if lap % 2 == 0:
-                angles_in_lap = [angle for angle in angles_sorted if distribution[angle] > lap]
-            else:
-                angles_in_lap = [angle for angle in reversed(angles_sorted) if distribution[angle] > lap]
+            # Fase 1: Centro (0.0) → Izquierda (-1.0)
+            angles_center_to_left = [a for a in reversed(all_angles_sorted) if a <= 0 and distribution[a] > lap]
             
-            target_angles.extend(angles_in_lap)
+            for angle in angles_center_to_left:
+                target_angles.append(angle)
+                
+                # Calcular tiempo de pausa según prioridad del ángulo
+                abs_angle = abs(angle)
+                if abs_angle < 0.05:  # Centro
+                    pause_time = 300  # Pausa larga (ms)
+                elif abs_angle > 0.95:  # Extremos
+                    pause_time = 250  # Pausa media-larga
+                elif abs_angle > 0.75 or abs_angle < 0.25:  # Cerca de centro/extremos
+                    pause_time = 150  # Pausa media
+                else:  # Intermedios
+                    pause_time = 60   # Pausa corta
+                
+                pause_times.append(pause_time)
+            
+            # Fase 2: Izquierda (-1.0) → Centro (0.0)
+            angles_left_to_center = [a for a in all_angles_sorted if a < 0 and distribution[a] > lap]
+            
+            for angle in angles_left_to_center:
+                target_angles.append(angle)
+                
+                abs_angle = abs(angle)
+                if abs_angle < 0.05:
+                    pause_time = 300
+                elif abs_angle > 0.95:
+                    pause_time = 250
+                elif abs_angle > 0.75 or abs_angle < 0.25:
+                    pause_time = 150
+                else:
+                    pause_time = 60
+                
+                pause_times.append(pause_time)
+            
+            # Agregar el centro antes de ir a la derecha
+            if distribution[0.0] > lap:
+                target_angles.append(0.0)
+                pause_times.append(300)
+            
+            # Fase 3: Centro (0.0) → Derecha (+1.0)
+            angles_center_to_right = [a for a in all_angles_sorted if a > 0 and distribution[a] > lap]
+            
+            for angle in angles_center_to_right:
+                target_angles.append(angle)
+                
+                abs_angle = abs(angle)
+                if abs_angle < 0.05:
+                    pause_time = 300
+                elif abs_angle > 0.95:
+                    pause_time = 250
+                elif abs_angle > 0.75 or abs_angle < 0.25:
+                    pause_time = 150
+                else:
+                    pause_time = 60
+                
+                pause_times.append(pause_time)
+            
+            # Fase 4: Derecha (+1.0) → Centro (0.0) para volver al inicio
+            angles_right_to_center = [a for a in reversed(all_angles_sorted) if a > 0 and distribution[a] > lap]
+            
+            for angle in angles_right_to_center:
+                target_angles.append(angle)
+                
+                abs_angle = abs(angle)
+                if abs_angle < 0.05:
+                    pause_time = 300
+                elif abs_angle > 0.95:
+                    pause_time = 250
+                elif abs_angle > 0.75 or abs_angle < 0.25:
+                    pause_time = 150
+                else:
+                    pause_time = 60
+                
+                pause_times.append(pause_time)
         
         # Ajustar para tener exactamente num_samples (por si hay redondeo)
         target_angles = target_angles[:num_samples]
+        pause_times = pause_times[:num_samples]
+        
+        print(f"Total de capturas en secuencia: {len(target_angles)}")
 
         # Animación más rápida
         anim_steps = 8
@@ -114,8 +187,8 @@ class SteeringWheelDataCollector:
         
         print("\n✓ ¡Captura iniciada!\n")
         
-        # Inicializar en el primer ángulo (Derecha = 1.0)
-        self.current_angle = target_angles[0]
+        # Inicializar en el centro (0.0)
+        self.current_angle = 0.0
 
         for i, target in enumerate(target_angles):
 
@@ -197,8 +270,8 @@ class SteeringWheelDataCollector:
             
             cv2.imshow("Entrenamiento", frame)
 
-            # Espera corta antes del siguiente ángulo (evita capturas rápidas)
-            if cv2.waitKey(90) & 0xFF == ord('q'):
+            # Espera ajustada según el ángulo (más tiempo en centro/extremos)
+            if cv2.waitKey(pause_times[i]) & 0xFF == ord('q'):
                 break
 
         cam.release()
