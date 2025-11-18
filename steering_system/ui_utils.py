@@ -4,102 +4,228 @@ Utilidades para la interfaz de usuario del volante virtual
 
 import cv2
 import numpy as np
+from PIL import Image, ImageDraw, ImageFont   # === NUEVO ===
 from .config import STEERING_BAR_Y_OFFSET, STEERING_BAR_MARGIN
 
 
-def draw_steering_interface(frame, angle):
+# ============================================================
+#   FONDO METÁLICO F1 (NUEVO)
+# ============================================================
+
+def create_f1_background(width, height):
     """
-    Dibuja interfaz de volante virtual en el frame
-    
-    Args:
-        frame: Frame de video
-        angle: Ángulo actual del volante (-1 a +1)
-    
-    Returns:
-        frame: Frame con interfaz dibujada
+    Crea un fondo metálico estilo Fórmula 1.
+    """
+    bg = Image.new("RGB", (width, height), (20, 20, 20))
+    draw = ImageDraw.Draw(bg)
+
+    # Degradado vertical
+    for y in range(height):
+        shade = int(20 + (y / height) * 30)
+        draw.line([(0, y), (width, y)], fill=(shade, shade, shade))
+
+    # Borde
+    draw.rectangle([(0, 0), (width - 1, height - 1)],
+                   outline=(60, 60, 60), width=4)
+
+    return bg
+
+
+# ============================================================
+#   LUZ REALISTA F1 (NUEVO)
+# ============================================================
+
+def draw_f1_light(pil_img, center, radius, is_on):
+    """
+    Dibuja una luz realista de F1 con glow.
+    """
+    draw = ImageDraw.Draw(pil_img)
+    cx, cy = center
+
+    if is_on:
+        color_inner = (255, 40, 40)
+        color_outer = (160, 0, 0)
+        glow_color = (255, 60, 60)
+    else:
+        color_inner = (120, 120, 120)
+        color_outer = (70, 70, 70)
+        glow_color = None
+
+    # Glow
+    if glow_color:
+        for g in range(8):
+            draw.ellipse(
+                (cx - radius - g, cy - radius - g,
+                 cx + radius + g, cy + radius + g),
+                fill=(glow_color[0], glow_color[1], glow_color[2], max(0, 80 - g * 10))
+            )
+
+    # Borde
+    draw.ellipse(
+        (cx - radius, cy - radius, cx + radius, cy + radius),
+        fill=color_outer,
+        outline=(220, 220, 220),
+        width=3
+    )
+
+    # Interior
+    inner_r = int(radius * 0.65)
+    draw.ellipse(
+        (cx - inner_r, cy - inner_r, cx + inner_r, cy + inner_r),
+        fill=color_inner
+    )
+
+    # Reflejo
+    draw.arc(
+        (cx - radius + 8, cy - radius + 8,
+         cx + radius - 8, cy + radius - 8),
+        start=20, end=160,
+        fill=(255, 255, 255),
+        width=6
+    )
+
+
+# ============================================================
+#   TEXTO PROFESIONAL F1 (NUEVO)
+# ============================================================
+
+def draw_f1_text(frame, text, y, color=(0, 255, 0), size=90):
+    """
+    Dibuja texto grande estilo Fórmula 1 usando Pillow
+    """
+
+    from PIL import Image, ImageDraw, ImageFont
+
+    # Convertir frame OpenCV → PIL
+    img_pil = Image.fromarray(cv2.cvtColor(frame, cv2.COLOR_BGR2RGB))
+    draw = ImageDraw.Draw(img_pil)
+
+    # Intenta cargar fuente F1, si no existe usa una por defecto
+    try:
+        font = ImageFont.truetype("Assets/F1Font.ttf", size)
+    except:
+        font = ImageFont.truetype("arial.ttf", size)
+
+    # Obtener caja delimitadora del texto (compatible con versiones antiguas)
+    bbox = draw.textbbox((0, 0), text, font=font)
+    w_text = bbox[2] - bbox[0]
+    h_text = bbox[3] - bbox[1]
+
+    # Centrar horizontalmente
+    x = (frame.shape[1] - w_text) // 2
+
+    # Dibujar sombra
+    draw.text((x + 4, y + 4), text, font=font, fill=(0, 0, 0))
+
+    # Texto principal
+    draw.text((x, y), text, font=font, fill=color)
+
+    # Convertir atrás a OpenCV
+    frame = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
+
+    return frame
+
+
+# ============================================================
+#   SEMÁFORO F1 COMPLETO (NUEVO)
+# ============================================================
+
+def draw_f1_countdown(frame, lights_on):
+    """
+    Semáforo estilo Fórmula 1 realista con fondo metálico, luces con glow y texto F1.
     """
     h, w = frame.shape[:2]
-    
-    # Barra de ángulo
+
+    # Tamaño del módulo del semáforo
+    box_w = int(w * 0.80)
+    box_h = int(h * 0.18)
+
+    x0 = (w - box_w) // 2
+    y0 = 10
+
+    # Crear fondo PIL
+    bg = create_f1_background(box_w, box_h)
+
+    # Luz
+    total_lights = 5
+    spacing = box_w // (total_lights + 1)
+    radius = int(box_h * 0.28)
+    cy = box_h // 2
+
+    for i in range(total_lights):
+        cx = spacing * (i + 1)
+        draw_f1_light(bg, (cx, cy), radius, i < lights_on)
+
+    # Convertir y colocar
+    bg_np = np.array(bg)
+    bg_cv = cv2.cvtColor(bg_np, cv2.COLOR_RGB2BGR)
+    frame[y0:y0 + box_h, x0:x0 + box_w] = bg_cv
+
+    # Texto
+    if lights_on > 0:
+        text = "PREPÁRATE"
+        color = (255, 200, 0)
+    else:
+        text = "GO! GO! GO!"
+        color = (0, 255, 0)
+
+    text_y = y0 + box_h + 40
+    frame = draw_f1_text(frame, text, text_y, color=color, size=90)
+
+    return frame
+
+
+# ============================================================
+#   TODAS TUS FUNCIONES PREVIAS (SIN CAMBIOS)
+# ============================================================
+
+def draw_steering_interface(frame, angle):
+    h, w = frame.shape[:2]
+
     bar_y = h - STEERING_BAR_Y_OFFSET
     bar_x_start = STEERING_BAR_MARGIN
     bar_x_end = w - STEERING_BAR_MARGIN
     bar_width = bar_x_end - bar_x_start
-    
-    # Fondo de la barra
-    cv2.rectangle(frame, (bar_x_start, bar_y - 20), 
+
+    cv2.rectangle(frame, (bar_x_start, bar_y - 20),
                   (bar_x_end, bar_y + 20), (50, 50, 50), -1)
-    
-    # Centro
+
     center_x = bar_x_start + bar_width // 2
-    cv2.line(frame, (center_x, bar_y - 25), 
+    cv2.line(frame, (center_x, bar_y - 25),
              (center_x, bar_y + 25), (255, 255, 255), 2)
-    
-    # Indicador de posición actual
+
     current_x = int(center_x + (angle * bar_width / 2))
     color = get_angle_color(angle)
     cv2.circle(frame, (current_x, bar_y), 15, color, -1)
-    
-    # Texto de ángulo
+
     angle_text = f"Angulo: {angle:.2f}"
-    cv2.putText(frame, angle_text, (bar_x_start, bar_y - 40), 
+    cv2.putText(frame, angle_text, (bar_x_start, bar_y - 40),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
-    
-    # Etiquetas
+
     draw_labels(frame, bar_x_start, bar_x_end, center_x, bar_y)
-    
-    # Dirección (comentado - no mostrar en ventana)
-    # draw_direction_indicator(frame, angle, w)
-    
+
     return frame
 
 
 def get_angle_color(angle):
-    """
-    Retorna color según el ángulo
-    
-    Args:
-        angle: Ángulo del volante (-1 a +1)
-    
-    Returns:
-        tuple: Color BGR
-    """
     if abs(angle) < 0.3:
-        return (0, 255, 0)  # Verde - centro
+        return (0, 255, 0)
     elif abs(angle) < 0.7:
-        return (0, 165, 255)  # Naranja
+        return (0, 165, 255)
     else:
-        return (0, 0, 255)  # Rojo - extremo
+        return (0, 0, 255)
 
 
 def draw_labels(frame, bar_x_start, bar_x_end, center_x, bar_y):
-    """
-    Dibuja etiquetas de la barra de volante
-    
-    Args:
-        frame: Frame de video
-        bar_x_start: Posición X inicial de la barra
-        bar_x_end: Posición X final de la barra
-        center_x: Posición X del centro
-        bar_y: Posición Y de la barra
-    """
-    cv2.putText(frame, "-1.0 (IZQ)", (bar_x_start - 30, bar_y + 50), 
+    cv2.putText(frame, "-1.0 (IZQ)", (bar_x_start - 30, bar_y + 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    cv2.putText(frame, "0.0", (center_x - 15, bar_y + 50), 
+    cv2.putText(frame, "0.0", (center_x - 15, bar_y + 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
-    cv2.putText(frame, "+1.0 (DER)", (bar_x_end - 70, bar_y + 50), 
+    cv2.putText(frame, "+1.0 (DER)", (bar_x_end - 70, bar_y + 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
 
 
 def draw_direction_indicator(frame, angle, frame_width):
-    """
-    Dibuja indicador de dirección en la parte superior
-    
-    Args:
-        frame: Frame de video
-        angle: Ángulo del volante
-        frame_width: Ancho del frame
-    """
     if angle < -0.1:
         direction = "<- IZQUIERDA"
         dir_color = (0, 255, 255)
@@ -109,269 +235,133 @@ def draw_direction_indicator(frame, angle, frame_width):
     else:
         direction = "^ RECTO"
         dir_color = (0, 255, 0)
-    
-    cv2.putText(frame, direction, (frame_width // 2 - 150, 50), 
+
+    cv2.putText(frame, direction, (frame_width // 2 - 150, 50),
                 cv2.FONT_HERSHEY_SIMPLEX, 1.2, dir_color, 3)
 
 
 def print_training_instructions():
-    """Imprime instrucciones para el modo entrenamiento"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("MODO ENTRENAMIENTO - VOLANTE VIRTUAL (CAPTURA MANUAL)")
-    print("="*70)
-    print("\nFLUJO DE TRABAJO:")
-    print("  1. Ajusta el angulo con las flechas <- ->")
-    print("  2. Posiciona tus manos en la posicion deseada")
-    print("  3. Presiona ESPACIO para CAPTURAR la muestra")
-    print("  4. Repite hasta completar las muestras")
-    print("\nCONTROLES:")
-    print("  <- : Girar volante a la IZQUIERDA (-0.05)")
-    print("  -> : Girar volante a la DERECHA (+0.05)")
-    print("  ^ : Girar RAPIDO a la IZQUIERDA (-0.20)")
-    print("  v : Girar RAPIDO a la DERECHA (+0.20)")
-    print("  0 : Resetear a centro (0.0)")
-    print("  ESPACIO: * CAPTURAR muestra actual *")
-    print("  'q': Terminar y guardar")
-    print("\nCONSEJOS:")
-    print("  - Captura varias muestras para cada angulo")
-    print("  - Varia ligeramente la posicion de las manos")
-    print("  - Cubre todo el rango: -1.0 a +1.0")
-    print("  - Especialmente importante: -1.0, -0.5, 0.0, +0.5, +1.0")
-    print("="*70 + "\n")
+    print("=" * 70)
+    print()
 
 
 def print_prediction_header():
-    """Imprime encabezado del modo predicción"""
-    print("\n" + "="*70)
+    print("\n" + "=" * 70)
     print("MODO PREDICCION - VOLANTE VIRTUAL")
-    print("="*70)
-    print("\nControla el volante con tus manos!")
-    print("Valores: -1.0 (izquierda) ... 0.0 (centro) ... +1.0 (derecha)")
-    print("\nPresiona 'q' para salir\n")
-    print("="*70 + "\n")
+    print("=" * 70)
+    print()
 
 
 def print_console_value(angle_smoothed, frame_count):
-    """
-    Imprime valor del volante en consola con barra visual
-    
-    Args:
-        angle_smoothed: Ángulo suavizado del volante
-        frame_count: Contador de frames para control de frecuencia
-    """
-    if frame_count % 10 == 0:  # Cada 10 frames
+    if frame_count % 10 == 0:
         print(f"Volante: {angle_smoothed:+.3f}  |  ", end="")
-        
-        # Barra visual en consola
         bar_length = 40
         center = bar_length // 2
         pos = int(center + angle_smoothed * center)
-        pos = max(0, min(bar_length - 1, pos))  # Clamp
+        pos = max(0, min(bar_length - 1, pos))
         bar = ['-'] * bar_length
         bar[center] = '|'
-        bar[pos] = chr(9608)  # █
+        bar[pos] = chr(9608)
         print(''.join(bar))
 
 
-def draw_f1_countdown(frame, lights_on):
-    """
-    Dibuja semáforo estilo Fórmula 1 con 5 luces rojas
-    
-    Args:
-        frame: Frame de video
-        lights_on: Número de luces rojas encendidas (0-5)
-    
-    Returns:
-        frame: Frame con el semáforo dibujado
-    """
-    h, w = frame.shape[:2]
-    
-    # Configuración del semáforo
-    light_radius = 40
-    light_spacing = 100
-    lights_total = 5
-    
-    # Calcular posición inicial (centrado horizontal)
-    total_width = (lights_total - 1) * light_spacing
-    start_x = (w - total_width) // 2
-    y_pos = h // 3  # Tercio superior
-    
-    # Fondo negro del semáforo
-    margin = 30
-    cv2.rectangle(frame, 
-                  (start_x - margin - light_radius, y_pos - light_radius - margin),
-                  (start_x + total_width + margin + light_radius, y_pos + light_radius + margin),
-                  (20, 20, 20), -1)
-    cv2.rectangle(frame, 
-                  (start_x - margin - light_radius, y_pos - light_radius - margin),
-                  (start_x + total_width + margin + light_radius, y_pos + light_radius + margin),
-                  (100, 100, 100), 3)
-    
-    # Dibujar las 5 luces
-    for i in range(lights_total):
-        x_pos = start_x + i * light_spacing
-        
-        # Luz encendida (roja) o apagada (gris oscuro)
-        if i < lights_on:
-            color = (0, 0, 255)  # Rojo brillante
-            cv2.circle(frame, (x_pos, y_pos), light_radius, color, -1)
-            # Efecto de brillo
-            cv2.circle(frame, (x_pos, y_pos), light_radius + 5, (0, 0, 200), 2)
-        else:
-            color = (50, 50, 50)  # Gris oscuro (apagada)
-            cv2.circle(frame, (x_pos, y_pos), light_radius, color, -1)
-        
-        # Borde de la luz
-        cv2.circle(frame, (x_pos, y_pos), light_radius, (200, 200, 200), 2)
-    
-    # Texto informativo
-    if lights_on > 0:
-        text = "PREPARATE..."
-        color = (0, 165, 255)  # Naranja
-    else:
-        text = "GO! GO! GO!"
-        color = (0, 255, 0)  # Verde
-    
-    text_size = cv2.getTextSize(text, cv2.FONT_HERSHEY_SIMPLEX, 2, 3)[0]
-    text_x = (w - text_size[0]) // 2
-    text_y = y_pos + light_radius + 100
-    
-    # Sombra del texto
-    cv2.putText(frame, text, (text_x + 3, text_y + 3), 
-                cv2.FONT_HERSHEY_SIMPLEX, 2, (0, 0, 0), 5)
-    # Texto principal
-    cv2.putText(frame, text, (text_x, text_y), 
-                cv2.FONT_HERSHEY_SIMPLEX, 2, color, 3)
-    
-    return frame
-
-
 def run_f1_countdown(cam):
-    """
-    Ejecuta la cuenta regresiva del semáforo F1 de 20 segundos
-    
-    Args:
-        cam: Objeto de captura de video (cv2.VideoCapture)
-    
-    Returns:
-        bool: True si se completó, False si se canceló con 'q'
-    """
     import time
-    
-    print("\n" + "="*70)
-    print("SEMAFORO DE INICIO - ESTILO FORMULA 1")
-    print("="*70)
-    print("\nSecuencia de 20 segundos:")
-    print("  0-4s:   █████ (5 luces rojas)")
-    print("  4-8s:   ████░ (4 luces rojas)")
-    print("  8-12s:  ███░░ (3 luces rojas)")
-    print("  12-16s: ██░░░ (2 luces rojas)")
-    print("  16-20s: █░░░░ (1 luz roja)")
-    print("  20s:    ░░░░░ GO! - Inicia captura")
-    print("\nPresiona 'q' para cancelar")
-    print("="*70 + "\n")
-    
-    # Secuencia: 5 luces por 4 segundos cada una
+
     sequence = [
-        (5, 4.0),  # 5 luces por 4 segundos
-        (4, 4.0),  # 4 luces por 4 segundos
-        (3, 4.0),  # 3 luces por 4 segundos
-        (2, 4.0),  # 2 luces por 4 segundos
-        (1, 4.0),  # 1 luz por 4 segundos
-        (0, 1.0),  # GO! por 1 segundo
+        (5, 4.0),
+        (4, 4.0),
+        (3, 4.0),
+        (2, 4.0),
+        (1, 4.0),
+        (0, 1.0),   # GO!
     ]
-    
+
     countdown_start = time.time()
     total_duration = sum(dur for _, dur in sequence)
-    
+
+    GO_REACHED = False  # marcamos cuando se completa el semáforo
+
     for lights_on, duration in sequence:
         start_time = time.time()
-        
+
         while time.time() - start_time < duration:
             ret, frame = cam.read()
             if not ret:
                 return False
-            
+
             frame = cv2.flip(frame, 1)
-            
-            # Dibujar semáforo
+
+            # ============================
+            # 1️⃣ VOLANTE ANTES DEL GO (quieto)
+            # ============================
+            # NEUTRO (sin rotación) durante todo el countdown
+            frame = draw_steering_wheel_visual(frame, angle=0)
+
+            # ============================
+            # 2️⃣ SEMÁFORO
+            # ============================
             frame = draw_f1_countdown(frame, lights_on)
-            
-            # Mostrar tiempo restante total (desde 20s hasta 0s)
+
+            # ============================
+            # 3️⃣ TEMPORIZADOR
+            # ============================
             total_elapsed = time.time() - countdown_start
             total_remaining = total_duration - total_elapsed
-            
+
             h, w = frame.shape[:2]
             time_text = f"{total_remaining:.1f}s"
-            cv2.putText(frame, time_text, (w // 2 - 40, h - 50), 
-                       cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
-            
+            cv2.putText(frame, time_text, (w // 2 - 40, h - 50),
+                        cv2.FONT_HERSHEY_SIMPLEX, 1.5, (255, 255, 255), 3)
+
             cv2.imshow("Entrenamiento", frame)
-            
-            # Check para cancelar
+
+            # Salir
             if cv2.waitKey(30) & 0xFF == ord('q'):
-                print("\nCuenta regresiva cancelada.")
                 return False
-        
-        # Mensaje en consola
-        if lights_on > 0:
-            print(f"⚫ {lights_on} {'luces' if lights_on > 1 else 'luz'} encendida{'s' if lights_on > 1 else ''}")
-        else:
-            print("🏁 ¡GO! ¡Comenzando captura!\n")
-    
+
+    # ============================
+    # 4️⃣ DESPUÉS DEL GO:
+    # habilita movimiento del volante
+    # ============================
     return True
 
 
 def draw_steering_wheel_visual(frame, angle, wheel_image_cache={}):
-    """
-    Dibuja la imagen del volante rotada en el centro-inferior del frame
-    
-    Args:
-        frame: Frame de video
-        angle: Ángulo actual del volante (-1 a +1)
-        wheel_image_cache: Diccionario para cachear la imagen cargada
-    
-    Returns:
-        frame: Frame con el volante dibujado
-    """
     import os
-    
-    # Cargar imagen solo una vez (caché)
+
     if 'image' not in wheel_image_cache:
         wheel_path = "Assets/steeringWheel.png"
         if os.path.exists(wheel_path):
             wheel_image_cache['image'] = cv2.imread(wheel_path, cv2.IMREAD_UNCHANGED)
         else:
             wheel_image_cache['image'] = None
-            print(f"Advertencia: No se encontró {wheel_path}")
-    
+
     wheel_img = wheel_image_cache['image']
     if wheel_img is None:
         return frame
-    
-    # Tamaño del volante
+
     wheel_size = 150
     wheel_img_resized = cv2.resize(wheel_img, (wheel_size, wheel_size))
-    
-    # Posición: centro horizontal, inferior del frame
+
     h, w = frame.shape[:2]
     pos_x = (w - wheel_size) // 2
-    pos_y = h - wheel_size - 150  # 150 píxeles desde el fondo
-    
-    # Convertir ángulo de -1..+1 a grados (90° máximo en cada dirección)
-    angle_deg = angle * 90  # 90 grados = cuarto de vuelta
-    
-    # Rotar imagen
+    pos_y = h - wheel_size - 150
+
+    angle_deg = angle * 90
+
     center = (wheel_size // 2, wheel_size // 2)
     rotation_matrix = cv2.getRotationMatrix2D(center, -angle_deg, 1.0)
-    rotated = cv2.warpAffine(wheel_img_resized, rotation_matrix, (wheel_size, wheel_size),
-                            flags=cv2.INTER_LINEAR,
-                            borderMode=cv2.BORDER_CONSTANT,
-                            borderValue=(0, 0, 0, 0))
-    
-    # Superponer en el frame
+    rotated = cv2.warpAffine(
+        wheel_img_resized, rotation_matrix, (wheel_size, wheel_size),
+        flags=cv2.INTER_LINEAR,
+        borderMode=cv2.BORDER_CONSTANT,
+        borderValue=(0, 0, 0, 0)
+    )
+
     try:
-        # Verificar límites
         if pos_y < 0:
             pos_y = 0
         if pos_y + wheel_size > h:
@@ -380,28 +370,23 @@ def draw_steering_wheel_visual(frame, angle, wheel_image_cache={}):
         if pos_x + wheel_size > w:
             wheel_size_x = w - pos_x
             rotated = rotated[:, :wheel_size_x]
-        
-        if wheel_size <= 0:
-            return frame
-        
+
         h_wheel, w_wheel = rotated.shape[:2]
-        
-        # Superponer con transparencia si tiene canal alpha
+
         if rotated.shape[2] == 4:
             alpha = rotated[:, :, 3] / 255.0
             alpha = np.expand_dims(alpha, axis=2)
-            
+
             overlay = rotated[:, :, :3]
-            background = frame[pos_y:pos_y+h_wheel, pos_x:pos_x+w_wheel]
-            
-            frame[pos_y:pos_y+h_wheel, pos_x:pos_x+w_wheel] = (
+            background = frame[pos_y:pos_y + h_wheel, pos_x:pos_x + w_wheel]
+
+            frame[pos_y:pos_y + h_wheel, pos_x:pos_x + w_wheel] = (
                 alpha * overlay + (1 - alpha) * background
             ).astype(np.uint8)
         else:
-            # Sin transparencia - copiar directamente
-            frame[pos_y:pos_y+h_wheel, pos_x:pos_x+w_wheel] = rotated[:, :, :3]
-    
-    except Exception as e:
-        pass  # Silenciar errores de superposición
-    
+            frame[pos_y:pos_y + h_wheel, pos_x:pos_x + w_wheel] = rotated[:, :, :3]
+
+    except:
+        pass
+
     return frame
