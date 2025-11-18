@@ -257,19 +257,7 @@ def run_f1_countdown(cam):
         bool: True si se completó, False si se canceló con 'q'
     """
     import time
-    
-    print("\n" + "="*70)
-    print("SEMAFORO DE INICIO - ESTILO FORMULA 1")
-    print("="*70)
-    print("\nSecuencia de 20 segundos:")
-    print("  0-4s:   █████ (5 luces rojas)")
-    print("  4-8s:   ████░ (4 luces rojas)")
-    print("  8-12s:  ███░░ (3 luces rojas)")
-    print("  12-16s: ██░░░ (2 luces rojas)")
-    print("  16-20s: █░░░░ (1 luz roja)")
-    print("  20s:    ░░░░░ GO! - Inicia captura")
     print("\nPresiona 'q' para cancelar")
-    print("="*70 + "\n")
     
     # Secuencia: 5 luces por 4 segundos cada una
     sequence = [
@@ -312,12 +300,6 @@ def run_f1_countdown(cam):
             if cv2.waitKey(30) & 0xFF == ord('q'):
                 print("\nCuenta regresiva cancelada.")
                 return False
-        
-        # Mensaje en consola
-        if lights_on > 0:
-            print(f"⚫ {lights_on} {'luces' if lights_on > 1 else 'luz'} encendida{'s' if lights_on > 1 else ''}")
-        else:
-            print("🏁 ¡GO! ¡Comenzando captura!\n")
     
     return True
 

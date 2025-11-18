@@ -1,7 +1,3 @@
-"""
-Módulo para recopilación de datos de entrenamiento del volante virtual
-"""
-
 import cv2
 import mediapipe as mp
 import numpy as np
@@ -13,7 +9,6 @@ from .config import (
     MIN_TRACKING_CONFIDENCE, calculate_angle_distribution
 )
 from .ui_utils import draw_steering_interface, run_f1_countdown
-
 
 class SteeringWheelDataCollector:
     """Recopila datos de posiciones de manos y ángulos de volante"""
@@ -58,23 +53,19 @@ class SteeringWheelDataCollector:
         return landmarks, results
     
     def collect_training_data(self, num_samples=200):
-        """
-        Captura inteligente con distribución priorizando centro y extremos.
-        El volante da múltiples vueltas completas según la cantidad de muestras.
-        """
         cam = cv2.VideoCapture(0)
         
-        # Calcular distribución y número de vueltas
+        #Calcular distribución y número de vueltas
         distribution, num_laps = calculate_angle_distribution(num_samples)
         
-        print(f"\nMODO ENTRENAMIENTO: Captura Inteligente")
+        print(f"\nMODO ENTRENAMIENTO:")
         print(f"Muestras totales: {num_samples}")
         print(f"Vueltas completas: {num_laps}")
         print(f"\nDistribución (muestras por ángulo):")
         print(f"  Centro (0.0): {distribution[0.0]} muestras")
         print(f"  Extremos (-1.0, +1.0): {distribution[-1.0]}, {distribution[1.0]} muestras")
         print(f"  Intermedios: 1-{min([v for k, v in distribution.items() if abs(k) > 0.1 and abs(k) < 0.9])} muestras")
-        print(f"\nPatrón: 0 → -1.0 → 0 → +1.0 → 0 (más lento en centro/extremos)\n")
+        #print(f"\nPatrón: 0 → -1.0 → 0 → +1.0 → 0 (más lento en centro/extremos)\n")
         
         # Construir secuencia: 0 → -1.0 → 0 → +1.0 → 0, repetir
         all_angles_sorted = sorted(distribution.keys())  # De -1.0 a +1.0
@@ -164,8 +155,6 @@ class SteeringWheelDataCollector:
         # Ajustar para tener exactamente num_samples (por si hay redondeo)
         target_angles = target_angles[:num_samples]
         pause_times = pause_times[:num_samples]
-        
-        print(f"Total de capturas en secuencia: {len(target_angles)}")
 
         # Animación más rápida
         anim_steps = 8
@@ -173,19 +162,16 @@ class SteeringWheelDataCollector:
 
         from .ui_utils import draw_steering_wheel_visual
 
-        # ============================================
-        # SEMAFORO F1 - CUENTA REGRESIVA DE 10 SEGUNDOS
-        # ============================================
-        print("\n🏁 Preparando inicio...\n")
+        # SEMAFORO - CUENTA REGRESIVA DE 20 SEGUNDOS
         countdown_completed = run_f1_countdown(cam)
         
         if not countdown_completed:
-            print("\n⚠ Entrenamiento cancelado antes de comenzar.")
+            print("\nEntrenamiento cancelado antes de comenzar.")
             cam.release()
             cv2.destroyAllWindows()
             return None, None
         
-        print("\n✓ ¡Captura iniciada!\n")
+        print("\n¡Capturas iniciada!\n")
         
         # Inicializar en el centro (0.0)
         self.current_angle = 0.0
@@ -196,9 +182,7 @@ class SteeringWheelDataCollector:
                 print("Salida por teclado.")
                 break
 
-            # --------------------------
             # 1. ANIMACIÓN SUAVE
-            # --------------------------
             start = self.current_angle
             delta = target - start
 
@@ -233,13 +217,9 @@ class SteeringWheelDataCollector:
                     cv2.destroyAllWindows()
                     return None, None
 
-            # --------------------------
             # 2. PARAR (ya está detenido)
-            # --------------------------
 
-            # --------------------------
             # 3. CAPTURAR UNA ÚNICA FOTO
-            # --------------------------
             ret, frame = cam.read()
             if not ret:
                 break
@@ -277,9 +257,7 @@ class SteeringWheelDataCollector:
         cam.release()
         cv2.destroyAllWindows()
 
-        # --------------------------
-        # GUARDAR ARCHIVOS
-        # --------------------------
+        #GUARDAR ARCHIVOS
         if len(self.hand_positions) > 0:
             timestamp = datetime.now().strftime("%Y%m%d_%H%M%S")
             X = np.array(self.hand_positions)
