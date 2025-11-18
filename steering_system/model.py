@@ -25,7 +25,6 @@ class SteeringWheelModel:
             input_size: Tamaño del input (126 para 2 manos con 21 landmarks cada una)
         """
         self.input_size = input_size
-        self.model_type = 'advanced'  # Siempre usar el modelo de mejor rendimiento
         self.model = None
         self.history = None
         
@@ -35,106 +34,15 @@ class SteeringWheelModel:
     
     def build_model(self):
         """
-        Construye red neuronal para regresión según el tipo especificado
+        Construye red neuronal avanzada para regresión
         
-        Returns:
-            model: Modelo compilado de Keras
-        """
-        if self.model_type == 'simple':
-            self.model = self._build_simple_model()
-        elif self.model_type == 'intermediate':
-            self.model = self._build_intermediate_model()
-        elif self.model_type == 'advanced':
-            self.model = self._build_advanced_model()
-        else:
-            raise ValueError(f"Tipo de modelo '{self.model_type}' no reconocido. Use: 'simple', 'intermediate' o 'advanced'")
-        
-        return self.model
-    
-    def _build_simple_model(self):
-        """
-        Modelo simple - Arquitectura básica (legacy)
-        
-        Returns:
-            model: Modelo compilado
-        """
-        model = keras.Sequential([
-            layers.Input(shape=(self.input_size,)),
-            layers.Dense(64, activation='relu'),
-            layers.Dropout(0.3),
-            layers.Dense(32, activation='relu'),
-            layers.Dropout(0.3),
-            layers.Dense(1, activation='tanh')
-        ])
-        
-        model.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-            loss='mse',
-            metrics=['mae']
-        )
-        
-        return model
-    
-    def _build_intermediate_model(self):
-        """
-        Modelo intermedio - Con BatchNormalization y L2 regularization
-        
-        Mejoras sobre el modelo simple:
-        - BatchNormalization para estabilidad del entrenamiento
-        - Regularización L2 para prevenir overfitting
-        - Más capas para mejor capacidad de aprendizaje
-        
-        Returns:
-            model: Modelo compilado
-        """
-        model = keras.Sequential([
-            # Input con normalización
-            layers.Input(shape=(self.input_size,)),
-            layers.BatchNormalization(),
-            
-            # Capa 1: 128 neuronas
-            layers.Dense(128, kernel_regularizer=regularizers.l2(0.001)),
-            layers.BatchNormalization(),
-            layers.Activation('relu'),
-            layers.Dropout(0.4),
-            
-            # Capa 2: 64 neuronas
-            layers.Dense(64, kernel_regularizer=regularizers.l2(0.001)),
-            layers.BatchNormalization(),
-            layers.Activation('relu'),
-            layers.Dropout(0.3),
-            
-            # Capa 3: 32 neuronas
-            layers.Dense(32, kernel_regularizer=regularizers.l2(0.001)),
-            layers.BatchNormalization(),
-            layers.Activation('relu'),
-            layers.Dropout(0.2),
-            
-            # Output
-            layers.Dense(1, activation='tanh')
-        ])
-        
-        model.compile(
-            optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-            loss='mse',
-            metrics=['mae']
-        )
-        
-        return model
-    
-    def _build_advanced_model(self):
-        """
-        Modelo avanzado - Arquitectura con conexiones residuales y Huber loss
-        
-        Arquitectura optimizada para regresión continua:
-        - Capas densas con activación ReLU
+        Arquitectura optimizada:
+        - 5 capas densas con conexiones residuales
         - BatchNormalization para estabilidad
         - Dropout para regularización
         - Regularización L2
-        - Conexiones residuales para mejor flujo de gradientes
-        - Huber loss (más robusto que MSE ante outliers)
+        - Huber loss (robusto ante outliers)
         - Learning rate scheduling
-        - Salida con activación tanh para valores en [-1, 1]
         
         Returns:
             model: Modelo compilado de Keras
@@ -192,10 +100,11 @@ class SteeringWheelModel:
         # Compilar con Huber loss (más robusto que MSE)
         model.compile(
             optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
-            loss=keras.losses.Huber(delta=1.0),  # Robusto ante outliers
+            loss=keras.losses.Huber(delta=1.0),
             metrics=['mae', 'mse']
         )
         
+        self.model = model
         return model
     
     def load_all_training_data(self, data_dir=DATA_DIR):
@@ -291,7 +200,7 @@ class SteeringWheelModel:
         if model_dir and not os.path.exists(model_dir):
             os.makedirs(model_dir)
         
-        # Callbacks (diferentes según el tipo de modelo)
+        # Callbacks (sin ReduceLROnPlateau porque usamos LearningRateSchedule)
         callbacks = [
             keras.callbacks.EarlyStopping(
                 monitor='val_loss',
@@ -307,18 +216,6 @@ class SteeringWheelModel:
             )
         ]
         
-        # ReduceLROnPlateau solo para modelos sin LearningRateSchedule
-        if self.model_type != 'advanced':
-            callbacks.append(
-                keras.callbacks.ReduceLROnPlateau(
-                    monitor='val_loss',
-                    factor=0.5,
-                    patience=7,
-                    min_lr=0.00001,
-                    verbose=1
-                )
-            )
-        
         # Entrenar
         print("Iniciando entrenamiento...\n")
         self.history = self.model.fit(
@@ -330,21 +227,15 @@ class SteeringWheelModel:
             verbose=1
         )
         
-        # Evaluar (diferentes métricas según el tipo de modelo)
-        eval_results = self.model.evaluate(X_val, y_val, verbose=0)
-        
-        if self.model_type == 'advanced':
-            # Advanced tiene: [loss, mae, mse]
-            val_loss, val_mae, val_mse = eval_results
-        else:
-            # Simple e Intermediate tienen: [loss, mae]
-            val_loss, val_mae = eval_results
+        # Evaluar modelo
+        val_loss, val_mae, val_mse = self.model.evaluate(X_val, y_val, verbose=0)
         
         print(f"\n{'='*60}")
         print(f"RESULTADOS FINALES:")
-        print(f"  Loss: {val_loss:.4f}")
+        print(f"  Loss (Huber): {val_loss:.4f}")
         print(f"  MAE: {val_mae:.4f}")
-        print(f"  Precision estimada: +/- {val_mae:.2f} en rango [-1, 1]")
+        print(f"  MSE: {val_mse:.4f}")
+        print(f"  Precisión estimada: +/- {val_mae:.2f} en rango [-1, 1]")
         print(f"{'='*60}\n")
         
         return self.history
@@ -394,31 +285,22 @@ class SteeringWheelModel:
         if not os.path.exists(stats_path):
             raise FileNotFoundError(f"No se encontraron estadisticas en {stats_path}")
         
-        # Cargar modelo sin compilar (evita problemas de deserialización)
+        # Cargar modelo sin compilar
         self.model = keras.models.load_model(model_path, compile=False)
         
-        # Re-compilar según el tipo de modelo (Advanced usa LearningRateSchedule)
-        if self.model_type == 'advanced':
-            # Learning rate scheduling para modelo Advanced
-            lr_schedule = keras.optimizers.schedules.ExponentialDecay(
-                initial_learning_rate=LEARNING_RATE,
-                decay_steps=1000,
-                decay_rate=0.95,
-                staircase=True
-            )
-            
-            self.model.compile(
-                optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
-                loss=keras.losses.Huber(delta=1.0),
-                metrics=['mae', 'mse']
-            )
-        else:
-            # Learning rate fijo para modelos Simple e Intermediate
-            self.model.compile(
-                optimizer=keras.optimizers.Adam(learning_rate=LEARNING_RATE),
-                loss='mse',
-                metrics=['mae']
-            )
+        # Re-compilar con learning rate scheduling y Huber loss
+        lr_schedule = keras.optimizers.schedules.ExponentialDecay(
+            initial_learning_rate=LEARNING_RATE,
+            decay_steps=1000,
+            decay_rate=0.95,
+            staircase=True
+        )
+        
+        self.model.compile(
+            optimizer=keras.optimizers.Adam(learning_rate=lr_schedule),
+            loss=keras.losses.Huber(delta=1.0),
+            metrics=['mae', 'mse']
+        )
         
         with open(stats_path, 'rb') as f:
             stats = pickle.load(f)
@@ -461,7 +343,7 @@ class SteeringWheelModel:
         
         # Información básica del modelo
         total_params = self.model.count_params()
-        print(f"\n📊 Tipo de modelo: {self.model_type.upper()}")
+        print(f"\n📊 Modelo: ADVANCED (Máxima Precisión)")
         print(f"🔢 Parámetros totales: {total_params:,}")
         
         # Métricas de entrenamiento si existen
