@@ -40,13 +40,13 @@ env/
 *.code-workspace
 
 # Models - Ignorar archivos grandes pero mantener carpeta
-models/*.h5
-models/*.pkl
-!models/.gitkeep
+#models/*.h5
+#models/*.pkl
+#!models/.gitkeep
 
 # Training data - Ignorar datos personales pero mantener carpeta
-steering_data/*.npy
-!steering_data/.gitkeep
+#steering_data/*.npy
+#!steering_data/.gitkeep
 
 # OS
 .DS_Store
