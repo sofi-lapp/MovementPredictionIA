@@ -1,13 +1,3 @@
-"""
-Punto de entrada principal del Sistema de Volante Virtual
-
-Este módulo proporciona un menú interactivo para:
-    1. Recopilar datos de entrenamiento
-    2. Entrenar el modelo4
-    3. Ejecutar predicción en tiempo real
-    4. Flujo completo (recopilar + entrenar + predecir)
-    5. Ver información del sistema
-"""
 
 from steering_system import (
     SteeringWheelDataCollector,
@@ -17,24 +7,18 @@ from steering_system import (
 )
 import os
 
-
 def collect_data():
-    """Opción 1: Recopilar datos de entrenamiento"""
-    print("\n" + "="*70)
-    print("RECOPILACION DE DATOS")
-    print("="*70)
-    
+    #Opción 1
+    print("\n" + "="*70 + "\nRECOPILACIÓN DE DATOS\n" + "="*70)
     num_samples = int(input("\nNumero de muestras (recomendado 100-300): "))
     collector = SteeringWheelDataCollector()
     collector.collect_training_data(num_samples=num_samples)
 
-
 def train_model():
-    """Opción 2: Entrenar modelo"""
-    print("\n" + "="*70)
-    print("ENTRENAMIENTO DEL MODELO")
-    print("="*70)
-    print("\nUsando modelo ADVANCED (máxima precisión)")
+    #Opción 2
+
+    print("\n" + "="*70 + "\nENTRENAMIENTO DEL MODELO\n" + "="*70)
+    #print("\nUsando modelo ADVANCED (máxima precisión)")
     print("Arquitectura: 5 capas con conexiones residuales + Huber loss")
     
     model = SteeringWheelModel()
@@ -43,11 +27,8 @@ def train_model():
         # Cargar datos
         X, y = model.load_all_training_data()
         
-        print(f"\n📊 Datos cargados: {len(X)} muestras")
-        
         # Construir modelo
         model.build_model()
-        print("\n📊 Modelo ADVANCED creado exitosamente")
         print("\nResumen del modelo:")
         model.model.summary()
         
@@ -62,8 +43,8 @@ def train_model():
         else:
             recommended = 500
         
-        print(f"\n💡 Épocas recomendadas para {num_samples} muestras: {recommended}")
-        print("⚡ Early Stopping activado: se detendrá automáticamente si no mejora")
+        print(f"\n Épocas recomendadas para {num_samples} muestras: {recommended}")
+        print("Early Stopping activado: se detendrá automáticamente si no mejora")
         
         epochs_input = input(f"\nNumero de epocas (Enter = {recommended}): ").strip()
         epochs = int(epochs_input) if epochs_input else recommended
@@ -77,22 +58,22 @@ def train_model():
         # Guardar
         model.save_model()
         
-        print("\n✅ Entrenamiento completado exitosamente")
+        print("\nEntrenamiento completado exitosamente")
         
     except FileNotFoundError as e:
-        print(f"\n❌ Error: No se encontraron datos de entrenamiento")
+        print(f"\nError: No se encontraron datos de entrenamiento")
         print("Asegurate de haber recopilado datos primero (opcion 1)")
     except ValueError as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         print("Verifica que los archivos de datos sean válidos")
     except Exception as e:
-        print(f"\n❌ Error inesperado: {e}")
+        print(f"\nError inesperado: {e}")
         import traceback
         traceback.print_exc()
 
 
 def predict_realtime():
-    """Opción 3: Predicción en tiempo real"""
+    #Opción 3
     print("\n" + "="*70)
     print("PREDICCION EN TIEMPO REAL")
     print("="*70)
@@ -109,12 +90,12 @@ def predict_realtime():
         predictor.run(show_console_output=show_console)
         
     except Exception as e:
-        print(f"\n❌ Error: {e}")
+        print(f"\nError: {e}")
         print("Asegurate de haber entrenado el modelo primero (opcion 2)")
 
 
 def full_workflow():
-    """Opción 4: Flujo completo"""
+    #Opcion 4
     print("\n" + "="*70)
     print("FLUJO COMPLETO")
     print("="*70)
@@ -147,7 +128,7 @@ def full_workflow():
         model = SteeringWheelModel()
         X, y = model.load_all_training_data()
         
-        print(f"\n📊 Datos cargados: {len(X)} muestras")
+        print(f"\nDatos cargados: {len(X)} muestras")
         
         model.build_model()
         model.train(X, y, epochs=150)
@@ -170,7 +151,7 @@ def full_workflow():
 
 
 def show_info():
-    """Opción 5: Información del sistema"""
+    #Opcion 5
     print("\n" + "="*70)
     print("INFORMACION DEL SISTEMA - VOLANTE VIRTUAL IA")
     print("="*70)
@@ -262,34 +243,39 @@ def show_info():
 
 
 def main():
-    """Función principal con menú de opciones"""
-    
-    print("\n" + "="*70)
-    print("SISTEMA DE VOLANTE VIRTUAL CON DEEP LEARNING")
-    print("="*70)
-    print("\nControla un volante virtual con tus manos")
-    print("Salida: valores entre -1 (izquierda) y +1 (derecha)")
-    print("\nOpciones:")
-    print("  1. Recopilar datos de entrenamiento")
-    print("  2. Entrenar modelo")
-    print("  3. Prediccion en tiempo real")
-    print("  4. Flujo completo (recopilar + entrenar + predecir)")
-    print("  5. Informacion del sistema")
-    
-    option = input("\nSelecciona una opcion (1-5): ")
-    
-    options = {
-        '1': collect_data,
-        '2': train_model,
-        '3': predict_realtime,
-        '4': full_workflow,
-        '5': show_info
-    }
-    
-    if option in options:
-        options[option]()
-    else:
-        print("Opcion invalida")
+    while True:
+        print("\n" + "="*70)
+        print("SISTEMA DE VOLANTE VIRTUAL CON DEEP LEARNING")
+        print("="*70)
+        #print("\nControla un volante virtual con tus manos")
+        #print("Salida: valores entre -1 (izquierda) y +1 (derecha)")
+        print("\nOpciones:")
+        print("  1. Recopilar datos de entrenamiento.")
+        print("  2. Entrenar modelo.")
+        print("  3. Prediccion en tiempo real.")
+        print("  4. Flujo completo (recopilación, entrenamiento y predicción)")
+        print("  5. Informacion del sistema")
+        print("  6. Salir")
+        print("="*70)
+        
+        option = input("\nSelecciona una opcion (1-6): ")
+        
+        options = {
+            '1': collect_data,
+            '2': train_model,
+            '3': predict_realtime,
+            '4': full_workflow,
+            '5': show_info
+        }
+        
+        if option == '6':
+            print("Apagando el sistema.")
+            break
+
+        if option in options:
+            options[option]()
+        else:
+            print("Opcion invalida")
 
 
 if __name__ == "__main__":

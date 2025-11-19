@@ -36,20 +36,14 @@ TOTAL_ANGLES = 41  # 20 izq + centro + 20 der (-1.0 a +1.0 en pasos de 0.05)
 
 def calculate_angle_distribution(num_samples):
     """
-    Calcula la distribución de muestras por ángulo, priorizando centro y extremos.
-    
-    Args:
-        num_samples: Número total de muestras a capturar
-    
-    Returns:
-        tuple: (angle_distribution dict, num_laps int)
-        - angle_distribution: {ángulo: cantidad_de_muestras}
-        - num_laps: Número de vueltas completas que dará el volante
-    
+    Genera una distribución de cuántas muestras deben capturarse para cada ángulo.
+
     Estrategia:
     - Centro (0.0): Mayor cantidad de muestras
     - Extremos (-1.0, +1.0): Segunda mayor cantidad
     - Posiciones intermedias: Menos muestras
+
+    Además calcula cuántas "vueltas completas" se darían.
     """
     import numpy as np
     

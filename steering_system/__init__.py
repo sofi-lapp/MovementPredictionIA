@@ -1,6 +1,5 @@
 """
 Sistema de Volante Virtual con Deep Learning
-============================================
 
 Este paquete modular permite controlar un volante virtual usando las manos
 detectadas por MediaPipe. Devuelve valores entre -1 (izquierda máxima) y +1 
