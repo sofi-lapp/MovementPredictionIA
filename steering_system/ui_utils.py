@@ -4,13 +4,9 @@ Utilidades para la interfaz de usuario del volante virtual
 
 import cv2
 import numpy as np
-from PIL import Image, ImageDraw, ImageFont   # === NUEVO ===
+from PIL import Image, ImageDraw, ImageFont 
 from .config import STEERING_BAR_Y_OFFSET, STEERING_BAR_MARGIN
 
-
-# ============================================================
-#   FONDO METÁLICO F1 (NUEVO)
-# ============================================================
 
 def create_f1_background(width, height):
     """
@@ -29,11 +25,6 @@ def create_f1_background(width, height):
                    outline=(60, 60, 60), width=4)
 
     return bg
-
-
-# ============================================================
-#   LUZ REALISTA F1 (NUEVO)
-# ============================================================
 
 def draw_f1_light(pil_img, center, radius, is_on):
     """
@@ -84,11 +75,6 @@ def draw_f1_light(pil_img, center, radius, is_on):
         width=6
     )
 
-
-# ============================================================
-#   TEXTO PROFESIONAL F1 (NUEVO)
-# ============================================================
-
 def draw_f1_text(frame, text, y, color=(0, 255, 0), size=90):
     """
     Dibuja texto grande estilo Fórmula 1 usando Pillow
@@ -124,11 +110,6 @@ def draw_f1_text(frame, text, y, color=(0, 255, 0), size=90):
     frame = cv2.cvtColor(np.array(img_pil), cv2.COLOR_RGB2BGR)
 
     return frame
-
-
-# ============================================================
-#   SEMÁFORO F1 COMPLETO (NUEVO)
-# ============================================================
 
 def draw_f1_countdown(frame, lights_on):
     """
@@ -173,11 +154,6 @@ def draw_f1_countdown(frame, lights_on):
     frame = draw_f1_text(frame, text, text_y, color=color, size=90)
 
     return frame
-
-
-# ============================================================
-#   TODAS TUS FUNCIONES PREVIAS (SIN CAMBIOS)
-# ============================================================
 
 def draw_steering_interface(frame, angle):
     h, w = frame.shape[:2]
@@ -294,20 +270,13 @@ def run_f1_countdown(cam):
 
             frame = cv2.flip(frame, 1)
 
-            # ============================
-            # 1️⃣ VOLANTE ANTES DEL GO (quieto)
-            # ============================
-            # NEUTRO (sin rotación) durante todo el countdown
+            #VOLANTE ANTES DEL GO (quieto)
             frame = draw_steering_wheel_visual(frame, angle=0)
 
-            # ============================
-            # 2️⃣ SEMÁFORO
-            # ============================
+            #SEMÁFORO
             frame = draw_f1_countdown(frame, lights_on)
 
-            # ============================
-            # 3️⃣ TEMPORIZADOR
-            # ============================
+            #TEMPORIZADOR
             total_elapsed = time.time() - countdown_start
             total_remaining = total_duration - total_elapsed
 
@@ -322,10 +291,7 @@ def run_f1_countdown(cam):
             if cv2.waitKey(30) & 0xFF == ord('q'):
                 return False
 
-    # ============================
-    # 4️⃣ DESPUÉS DEL GO:
     # habilita movimiento del volante
-    # ============================
     return True
 
 

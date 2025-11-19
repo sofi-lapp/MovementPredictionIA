@@ -343,13 +343,12 @@ class SteeringWheelModel:
         
         # Información básica del modelo
         total_params = self.model.count_params()
-        print(f"\n📊 Modelo: ADVANCED (Máxima Precisión)")
-        print(f"🔢 Parámetros totales: {total_params:,}")
+        print(f"Parámetros totales: {total_params:,}")
         
         # Métricas de entrenamiento si existen
         metrics = self.get_training_metrics()
         if metrics and metrics['train_loss'] is not None:
-            print(f"\n📈 Métricas de Entrenamiento:")
+            print(f"\nMétricas de Entrenamiento:")
             print(f"   ├─ Épocas completadas: {metrics['epochs_trained']}")
             print(f"   ├─ Loss (Entrenamiento): {metrics['train_loss']:.6f}")
             print(f"   ├─ Loss (Validación): {metrics['val_loss']:.6f}")
@@ -360,29 +359,29 @@ class SteeringWheelModel:
             val_mae = metrics['val_mae']
             loss_diff = abs(metrics['train_loss'] - metrics['val_loss'])
             
-            print(f"\n🎯 Análisis de Calidad:")
+            print(f"\nAnálisis de Calidad:")
             
             # Precisión
             if val_mae < 0.05:
-                quality = "EXCELENTE ⭐⭐⭐"
+                quality = "EXCELENTE"
             elif val_mae < 0.10:
-                quality = "BUENA ⭐⭐"
+                quality = "BUENA"
             elif val_mae < 0.20:
-                quality = "ACEPTABLE ⭐"
+                quality = "ACEPTABLE"
             else:
-                quality = "NECESITA MEJORA ⚠️"
+                quality = "NECESITA MEJORA"
             
             print(f"   ├─ Precisión: {quality}")
             print(f"   ├─ Error promedio: ±{val_mae:.4f} (rango [-1, 1])")
             
             # Overfitting
             if loss_diff > 0.05:
-                print(f"   └─ ⚠️ ADVERTENCIA: Posible overfitting detectado")
+                print(f"   └─ ADVERTENCIA: Posible overfitting detectado")
                 print(f"      (Diferencia train-val: {loss_diff:.6f})")
             else:
-                print(f"   └─ ✅ Sin signos de overfitting")
+                print(f"   └─ Sin signos de overfitting")
         else:
-            print("\n⚠️ El modelo aún no ha sido entrenado o fue cargado desde archivo.")
+            print("\nEl modelo aún no ha sido entrenado o fue cargado desde archivo.")
         
         print("="*70 + "\n")
     
