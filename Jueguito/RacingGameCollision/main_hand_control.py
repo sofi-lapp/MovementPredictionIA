@@ -202,7 +202,7 @@ class HandController:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         # Estado
-        status = "🖐️ MANOS DETECTADAS" if self.hands_detected else "⚠️ SIN MANOS"
+        status = "MANOS DETECTADAS" if self.hands_detected else "SIN MANOS"
         status_color = (0, 255, 0) if self.hands_detected else (0, 0, 255)
         cv2.putText(frame, status, (10, 40), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, status_color, 2)
@@ -310,9 +310,9 @@ class PlayerCar(AbstractCar):
         self.vel = max(self.vel - self.acceleration / 2, 0)
         self.move()
 
-    def bounce(self):
-        self.vel = -self.vel
-        self.move()
+    def slow_down_collision(self):
+        """Reduce velocidad por colisión pero permite seguir moviéndose"""
+        self.vel = max(self.vel * 0.5, 0.5)  # Reduce a la mitad, mínimo 0.5
 
 
 class ComputerCar(AbstractCar):
@@ -432,7 +432,7 @@ def move_player(player_car, hand_controller):
 
 def handle_collision(player_car, computer_car, game_info):
     if player_car.collide(TRACK_BORDER_MASK) != None:
-        player_car.bounce()
+        player_car.slow_down_collision()  # Reduce velocidad pero sigue moviéndose
 
     computer_finish_poi_collide = computer_car.collide(
         FINISH_MASK, *FINISH_POSITION)
@@ -448,7 +448,7 @@ def handle_collision(player_car, computer_car, game_info):
         FINISH_MASK, *FINISH_POSITION)
     if player_finish_poi_collide != None:
         if player_finish_poi_collide[1] == 0:
-            player_car.bounce()
+            player_car.slow_down_collision()  # Reduce velocidad en colisión
         else:
             game_info.next_level()
             player_car.reset()
