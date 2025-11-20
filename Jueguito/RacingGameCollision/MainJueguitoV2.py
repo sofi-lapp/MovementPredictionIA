@@ -20,10 +20,10 @@ pygame.font.init()
 # Get the directory where this script is located
 SCRIPT_DIR = Path(__file__).parent
 
-GRASS = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/grass.jpg"), 2.5)
-TRACK = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track.png"), 0.9)
+GRASS = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/grass.png"), 2.5)
+TRACK = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track2.png"), 0.9)
 
-TRACK_BORDER = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track-border.png"), 0.9)
+TRACK_BORDER = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track-border2.png"), 0.9)
 TRACK_BORDER_MASK = pygame.mask.from_surface(TRACK_BORDER)
 
 FINISH = pygame.image.load(SCRIPT_DIR / "imgs/finish.png")
@@ -68,8 +68,11 @@ class HandController:
                 print(f"⚠ No se pudo cargar el modelo: {e}")
                 print("→ Usando detección básica de manos")
         
-        # Cámara
+        # Cámara con resolución reducida para mejor rendimiento
         self.cam = cv2.VideoCapture(0)
+        self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 450)  # Reducir resolución
+        self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 340)
+        self.cam.set(cv2.CAP_PROP_FPS, 30)  # Limitar FPS
         
         # Suavizado de predicciones
         self.prediction_history = []
@@ -78,6 +81,8 @@ class HandController:
         # Estado
         self.current_steering = 0.0  # -1.0 a 1.0
         self.hands_detected = False
+        self.frame_count = 0
+        self.process_every_n_frames = 2  # Procesar cada 2 frames
     
     def extract_hand_landmarks(self, frame):
         """Extrae landmarks de ambas manos"""
@@ -110,15 +115,21 @@ class HandController:
         return np.mean(self.prediction_history)
     
     def update(self):
-        """Actualiza el estado del controlador"""
+        """Actualiza el estado del controlador (optimizado)"""
+        self.frame_count += 1
+        
+        # Procesar solo cada N frames para mejorar rendimiento
+        if self.frame_count % self.process_every_n_frames != 0:
+            return self.current_steering
+        
         ret, frame = self.cam.read()
         if not ret:
-            return 0.0
+            return self.current_steering
         
         # Efecto espejo
         frame = cv2.flip(frame, 1)
         
-        # Extraer landmarks
+        # Extraer landmarks (necesario para dibujar las manos)
         landmarks, results = self.extract_hand_landmarks(frame)
         
         # Actualizar estado de detección
@@ -126,40 +137,45 @@ class HandController:
         
         # Calcular dirección
         if not self.hands_detected:
+            # Sin manos detectadas, volver gradualmente a centro
             self.current_steering *= 0.9
             steering = self.current_steering
         else:
+            # Si tenemos modelo entrenado, usarlo
             if self.model:
                 angle = self.model.predict(landmarks)
                 steering = self.smooth_prediction(angle)
             else:
+                # Método básico: usar posición horizontal de las manos
                 x_positions = []
                 for hand_landmarks in results.multi_hand_landmarks:
-                    wrist = hand_landmarks.landmark[0]
+                    wrist = hand_landmarks.landmark[0]  # Muñeca
                     x_positions.append(wrist.x)
                 
                 avg_x = np.mean(x_positions)
+                # Convertir de [0, 1] a [-1, 1]
                 steering = self.smooth_prediction((avg_x - 0.5) * 2)
             
             self.current_steering = steering
         
-        # Mostrar vista de cámara
+        # Mostrar vista de cámara (solo cuando procesamos)
         self.show_camera_view(frame, steering, results)
         
         return steering
     
     def show_camera_view(self, frame, steering, results):
-        """Muestra la vista de la cámara con indicadores"""
+        """Muestra la vista de la cámara con indicadores - Estilo entrenamiento"""
         h, w = frame.shape[:2]
         
-        # Dibujar landmarks de las manos
+        # Dibujar landmarks de las manos (como en el entrenamiento)
         if results.multi_hand_landmarks:
             mp_drawing = mp.solutions.drawing_utils
             for hand_landmarks in results.multi_hand_landmarks:
                 mp_drawing.draw_landmarks(
                     frame, hand_landmarks, self.mp_hands.HAND_CONNECTIONS)
         
-        # Barra de ángulo
+        # Usar la misma interfaz del sistema de entrenamiento
+        # Barra de ángulo en la parte inferior
         bar_margin = 50
         bar_y = h - 80
         bar_x_start = bar_margin
@@ -175,20 +191,20 @@ class HandController:
         cv2.line(frame, (center_x, bar_y - 25), 
                  (center_x, bar_y + 25), (255, 255, 255), 2)
         
-        # Indicador de posición actual
+        # Indicador de posición actual (círculo)
         current_x = int(center_x + (steering * bar_width / 2))
         
         # Color según ángulo
         if abs(steering) < 0.3:
-            color = (0, 255, 0)
+            color = (0, 255, 0)  # Verde - centro
         elif abs(steering) < 0.7:
-            color = (0, 165, 255)
+            color = (0, 165, 255)  # Naranja
         else:
-            color = (0, 0, 255)
+            color = (0, 0, 255)  # Rojo - extremo
         
         cv2.circle(frame, (current_x, bar_y), 15, color, -1)
         
-        # Texto
+        # Texto de ángulo
         angle_text = f"Angulo: {steering:.2f}"
         cv2.putText(frame, angle_text, (bar_x_start, bar_y - 40), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.8, (255, 255, 255), 2)
@@ -201,13 +217,14 @@ class HandController:
         cv2.putText(frame, "+1.0 (DER)", (bar_x_end - 70, bar_y + 50), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
-        # Estado
+        # Estado en la parte superior
         status = "MANOS DETECTADAS" if self.hands_detected else "SIN MANOS"
         status_color = (0, 255, 0) if self.hands_detected else (0, 0, 255)
         cv2.putText(frame, status, (10, 40), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, status_color, 2)
         
-        mode = "Modo: IA" if self.model else "Modo: Basico"
+        # Modo del modelo
+        mode = "Modo: IA (Modelo entrenado)" if self.model else "Modo: Basico (Posicion manos)"
         cv2.putText(frame, mode, (10, 75), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.6, (255, 200, 0), 2)
         
@@ -289,6 +306,10 @@ class AbstractCar:
 
         self.y -= vertical
         self.x -= horizontal
+        
+        # Limitar a los bordes de la pantalla
+        self.x = max(0, min(self.x, WIDTH - self.img.get_width()))
+        self.y = max(0, min(self.y, HEIGHT - self.img.get_height()))
 
     def collide(self, mask, x=0, y=0):
         car_mask = pygame.mask.from_surface(self.img)
@@ -457,13 +478,13 @@ def handle_collision(player_car, computer_car, game_info):
 
 def main():
     # Buscar modelo entrenado
-    model_path = Path(__file__).parent.parent / "models" / "steering_model.h5"
-    stats_path = Path(__file__).parent.parent / "models" / "steering_stats.pkl"
+    model_path = Path(__file__).parent.parent.parent / "models" / "steering_model.h5"
+    stats_path = Path(__file__).parent.parent.parent / "models" / "steering_stats.pkl"
     
     print("="*70)
     print("JUEGO DE CARRERAS COMPLETO - CONTROL POR MANOS")
     print("="*70)
-    print("\n✨ Características:")
+    print("\nCaracterísticas:")
     print("  • Colisiones con bordes")
     print("  • 10 Niveles progresivos")
     print("  • Competencia con IA")
@@ -472,14 +493,17 @@ def main():
     print("  🖐️  Manos: Dirección automática")
     print("  W: Acelerar | S: Retroceder")
     print("  A/D: Girar (teclado alternativo)")
+    print("  R: Reiniciar carrera")
     print("  Q: Salir")
     print("\n" + "="*70)
     
     if model_path.exists() and stats_path.exists():
-        print(f"✓ Modelo encontrado")
+        print(f"✓ Modelo encontrado: {model_path}")
     else:
         print("⚠ No se encontró modelo entrenado")
-        print("→ Usando detección básica")
+        print("→ Usando detección básica de posición de manos")
+        if not model_path.parent.exists():
+            print(f"→ Directorio de modelos no existe: {model_path.parent}")
     print("="*70 + "\n")
     
     # Inicializar
@@ -518,12 +542,18 @@ def main():
                 if event.type == pygame.QUIT:
                     run = False
                     break
-                if event.type == pygame.KEYDOWN and event.key == pygame.K_q:
-                    run = False
-                    break
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_q:
+                        run = False
+                        break
+                    elif event.key == pygame.K_r:
+                        # Reiniciar carrera
+                        game_info.reset()
+                        player_car.reset()
+                        computer_car.reset()
 
-            # Actualizar manos si no están en la fase de inicio
-            if game_info.started and not hand_controller.hands_detected:
+            # Actualizar control de manos continuamente
+            if game_info.started:
                 hand_controller.update()
 
             move_player(player_car, hand_controller)
