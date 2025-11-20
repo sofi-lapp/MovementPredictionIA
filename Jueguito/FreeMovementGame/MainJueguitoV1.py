@@ -7,8 +7,8 @@ import cv2
 import mediapipe as mp
 import numpy as np
 
-# Add the MovementPredictionIA directory to the path
-sys.path.insert(0, str(Path(__file__).parent.parent.parent / "MovementPredictionIA"))
+# Add the parent directory to path to import steering_system
+sys.path.insert(0, str(Path(__file__).parent.parent.parent))
 
 from steering_system import SteeringWheelModel
 from utils import scale_image, blit_rotate_center
@@ -20,9 +20,9 @@ pygame.font.init()
 # Get the directory where this script is located
 SCRIPT_DIR = Path(__file__).parent
 
-GRASS = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/grass.jpg"), 2.5)
-TRACK = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track.png"), 0.9)
-TRACK_BORDER = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track-border.png"), 0.9)
+GRASS = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/grass.png"), 2.5)
+TRACK = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track.png"), 1.15)
+TRACK_BORDER = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/track-border.png"), 1.15)
 
 RED_CAR = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/red-car.png"), 0.55)
 GREEN_CAR = scale_image(pygame.image.load(SCRIPT_DIR / "imgs/green-car.png"), 0.55)
@@ -64,8 +64,11 @@ class HandController:
                 print(f"⚠ No se pudo cargar el modelo: {e}")
                 print("→ Usando detección básica de manos")
         
-        # Cámara
+        # Cámara con resolución reducida para mejor rendimiento
         self.cam = cv2.VideoCapture(0)
+        self.cam.set(cv2.CAP_PROP_FRAME_WIDTH, 450)  # Reducir resolución
+        self.cam.set(cv2.CAP_PROP_FRAME_HEIGHT, 340)
+        self.cam.set(cv2.CAP_PROP_FPS, 30)  # Limitar FPS
         
         # Suavizado de predicciones
         self.prediction_history = []
@@ -74,6 +77,8 @@ class HandController:
         # Estado
         self.current_steering = 0.0  # -1.0 a 1.0
         self.hands_detected = False
+        self.frame_count = 0
+        self.process_every_n_frames = 2  # Procesar cada 2 frames
     
     def extract_hand_landmarks(self, frame):
         """Extrae landmarks de ambas manos"""
@@ -106,10 +111,16 @@ class HandController:
         return np.mean(self.prediction_history)
     
     def update(self):
-        """Actualiza el estado del controlador"""
+        """Actualiza el estado del controlador (optimizado)"""
+        self.frame_count += 1
+        
+        # Procesar solo cada N frames para mejorar rendimiento
+        if self.frame_count % self.process_every_n_frames != 0:
+            return self.current_steering
+        
         ret, frame = self.cam.read()
         if not ret:
-            return 0.0
+            return self.current_steering
         
         # Efecto espejo
         frame = cv2.flip(frame, 1)
@@ -143,7 +154,7 @@ class HandController:
             
             self.current_steering = steering
         
-        # Mostrar vista de cámara con interfaz completa
+        # Mostrar vista de cámara (solo cuando procesamos)
         self.show_camera_view(frame, steering, results)
         
         return steering
@@ -203,7 +214,7 @@ class HandController:
                     cv2.FONT_HERSHEY_SIMPLEX, 0.5, (255, 255, 255), 1)
         
         # Estado en la parte superior
-        status = "🖐️ MANOS DETECTADAS" if self.hands_detected else "⚠️ SIN MANOS"
+        status = "MANOS DETECTADAS" if self.hands_detected else "SIN MANOS"
         status_color = (0, 255, 0) if self.hands_detected else (0, 0, 255)
         cv2.putText(frame, status, (10, 40), 
                     cv2.FONT_HERSHEY_SIMPLEX, 0.9, status_color, 2)
@@ -257,6 +268,10 @@ class AbstractCar:
         self.vel = min(self.vel + self.acceleration, self.max_vel)
         self.move()
 
+    def move_backward(self):
+        self.vel = max(self.vel - self.acceleration, -self.max_vel/2)
+        self.move()
+
     def move(self):
         radians = math.radians(self.angle)
         vertical = math.cos(radians) * self.vel
@@ -264,6 +279,10 @@ class AbstractCar:
 
         self.y -= vertical
         self.x -= horizontal
+        
+        # Limitar a los bordes de la pantalla
+        self.x = max(0, min(self.x, WIDTH - self.img.get_width()))
+        self.y = max(0, min(self.y, HEIGHT - self.img.get_height()))
 
     def reduce_speed(self):
         self.vel = max(self.vel - self.acceleration / 2, 0)
@@ -272,7 +291,18 @@ class AbstractCar:
 
 class PlayerCar(AbstractCar):
     IMG = RED_CAR
-    START_POS = (180, 200)
+    START_POS = (300, 460)
+    START_ANGLE = 90
+
+    def __init__(self, max_vel, rotation_vel):
+        super().__init__(max_vel, rotation_vel)
+        self.angle = self.START_ANGLE
+    
+    def reset(self):
+        """Reinicia el auto a la posición inicial"""
+        self.x, self.y = self.START_POS
+        self.angle = self.START_ANGLE
+        self.vel = 0
 
 
 def draw(win, images, player_car, hand_controller):
@@ -298,16 +328,17 @@ def draw(win, images, player_car, hand_controller):
 
 def main():
     # Buscar modelo entrenado
-    model_path = Path(__file__).parent.parent.parent / "MovementPredictionIA" / "models" / "steering_model.h5"
-    stats_path = Path(__file__).parent.parent.parent / "MovementPredictionIA" / "models" / "steering_stats.pkl"
+    model_path = Path(__file__).parent.parent.parent / "models" / "steering_model.h5"
+    stats_path = Path(__file__).parent.parent.parent / "models" / "steering_stats.pkl"
     
     print("="*70)
     print("JUEGO DE CARRERAS - CONTROL POR MANOS")
     print("="*70)
     print("\nControles:")
     print("  Manos: Dirección automática (si hay modelo entrenado)")
-    print("  W: Acelerar")
+    print("  W: Acelerar | S: Retroceder")
     print("  A/D: Girar (teclado alternativo)")
+    print("  R: Reiniciar posición")
     print("  Q: Salir")
     print("\n" + "="*70)
     
@@ -331,8 +362,8 @@ def main():
     
     run = True
     clock = pygame.time.Clock()
-    images = [(GRASS, (0, 0)), (TRACK, (0, 0))]
-    player_car = PlayerCar(4, 4)
+    images = [(GRASS, (0, 0)), (TRACK, (0, 0)), (TRACK_BORDER, (0, 0))]
+    player_car = PlayerCar(3, 4)
     
     try:
         while run:
@@ -347,6 +378,10 @@ def main():
                 if event.type == pygame.QUIT:
                     run = False
                     break
+                if event.type == pygame.KEYDOWN:
+                    if event.key == pygame.K_r:
+                        # Reiniciar posición del auto
+                        player_car.reset()
             
             keys = pygame.key.get_pressed()
             moved = False
@@ -359,6 +394,9 @@ def main():
             if keys[pygame.K_w]:
                 moved = True
                 player_car.move_forward()
+            if keys[pygame.K_s]:
+                moved = True
+                player_car.move_backward()
             if keys[pygame.K_q]:
                 run = False
                 break
